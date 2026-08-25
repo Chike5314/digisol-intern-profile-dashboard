@@ -23,7 +23,7 @@ import {
 
 // Replace with your real deployed API Gateway URL
 const API_URL =
-  "https://YOUR_API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com/prod";
+  "https://j6wwoje443.execute-api.us-east-1.amazonaws.com/prod/";
 
 export default function App() {
   const [interns, setInterns] = useState([]);
