@@ -48,14 +48,14 @@ function App({ signOut, user }) {
 
   const authenticatedFetch = async (url, options = {}) => {
     const session = await fetchAuthSession();
-    const accessToken = session.tokens?.accessToken?.toString();
+    const idToken = session.tokens?.idToken?.toString();
 
     return fetch(url, {
       ...options,
       headers: {
         ...options.headers,
-        ...(accessToken
-          ? { Authorization: `Bearer ${accessToken}` }
+        ...(idToken
+          ? { Authorization: `Bearer ${idToken}` }
           : {}),
       },
     });
