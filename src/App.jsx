@@ -471,12 +471,23 @@ function App({ signOut, user }) {
             <span className="font-bold">Digisol</span>
           </div>
 
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white"
-          >
-            <UserPlus size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={signOut}
+              title="Sign out"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            >
+              <LogOut size={17} />
+            </button>
+
+            <button
+              onClick={() => setShowForm(true)}
+              title="Add intern"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white"
+            >
+              <UserPlus size={18} />
+            </button>
+          </div>
         </div>
 
         <div className="mx-auto max-w-[1500px] px-5 py-8 md:px-8 lg:px-10 lg:py-10">
@@ -502,16 +513,26 @@ function App({ signOut, user }) {
                 </p>
               </div>
 
-              <button
-                onClick={() => {
-                  resetForm();
-                  setShowForm(true);
-                }}
-                className="hidden items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition hover:-translate-y-0.5 hover:bg-indigo-700 lg:flex"
-              >
-                <UserPlus size={17} />
-                Add Intern
-              </button>
+              <div className="hidden items-center gap-3 lg:flex">
+                <button
+                  onClick={signOut}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                >
+                  <LogOut size={17} />
+                  Sign out
+                </button>
+
+                <button
+                  onClick={() => {
+                    resetForm();
+                    setShowForm(true);
+                  }}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition hover:-translate-y-0.5 hover:bg-indigo-700"
+                >
+                  <UserPlus size={17} />
+                  Add Intern
+                </button>
+              </div>
             </div>
           </section>
 
