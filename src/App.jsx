@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { fetchAuthSession } from "aws-amplify/auth";
+import { withAuthenticator } from "@aws-amplify/ui-react";
 import {
   UserPlus,
   Trash2,
@@ -19,13 +21,14 @@ import {
   ImagePlus,
   MoreVertical,
   ShieldCheck,
+  LogOut,
 } from "lucide-react";
 
 // Replace with your real deployed API Gateway URL
 const API_URL =
-  "https://j6wwoje443.execute-api.us-east-1.amazonaws.com/prod/";
+  "https://j6wwoje443.execute-api.us-east-1.amazonaws.com/prod";
 
-export default function App() {
+function App({ signOut, user }) {
   const [interns, setInterns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,6 +45,21 @@ export default function App() {
     school: "",
     imageUrl: "",
   });
+
+  const authenticatedFetch = async (url, options = {}) => {
+    const session = await fetchAuthSession();
+    const accessToken = session.tokens?.accessToken?.toString();
+
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        ...(accessToken
+          ? { Authorization: `Bearer ${accessToken}` }
+          : {}),
+      },
+    });
+  };
 
   // ─────────────────────────────────────────────
   // Toast
@@ -67,7 +85,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/interns`);
+      const res = await authenticatedFetch(`${API_URL}/interns`);
 
       if (!res.ok) {
         throw new Error("Failed to fetch interns");
@@ -113,7 +131,7 @@ export default function App() {
     }
 
     try {
-      const presignedRes = await fetch(`${API_URL}/presigned-url`, {
+      const presignedRes = await authenticatedFetch(`${API_URL}/presigned-url`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -182,7 +200,7 @@ export default function App() {
       };
 
       if (editingId) {
-        const res = await fetch(`${API_URL}/interns/${editingId}`, {
+        const res = await authenticatedFetch(`${API_URL}/interns/${editingId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -196,7 +214,7 @@ export default function App() {
 
         showToast("Profile updated successfully");
       } else {
-        const res = await fetch(`${API_URL}/interns`, {
+        const res = await authenticatedFetch(`${API_URL}/interns`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -242,7 +260,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/interns/${deleteId}`, {
+      const res = await authenticatedFetch(`${API_URL}/interns/${deleteId}`, {
         method: "DELETE",
       });
 
@@ -421,6 +439,19 @@ export default function App() {
                 date.
               </p>
             </div>
+
+            <button
+              onClick={signOut}
+              className="mt-3 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+            >
+              <LogOut size={17} />
+              <span>Sign out</span>
+              {user?.username && (
+                <span className="ml-auto max-w-28 truncate text-xs text-slate-400">
+                  {user.username}
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </aside>
@@ -863,6 +894,7 @@ export default function App() {
   );
 }
 
+
 // ─────────────────────────────────────────────
 // Stat card
 // ─────────────────────────────────────────────
@@ -1100,3 +1132,5 @@ function EmptyState({ searchQuery, onAdd }) {
     </div>
   );
 }
+
+export default withAuthenticator(App);
