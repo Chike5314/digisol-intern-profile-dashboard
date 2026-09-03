@@ -284,18 +284,8 @@ function App({ signOut, user }) {
       });
       if (!createRes.ok) throw new Error("Could not create photo record");
       const photo = await createRes.json();
+      const { uploadUrl } = photo;
 
-      const presignedRes = await authenticatedFetch(`${API_URL}/presigned-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: photoFile.name,
-          fileType: photoFile.type,
-          key: photo.s3_key,
-        }),
-      });
-      if (!presignedRes.ok) throw new Error("Could not prepare photo upload");
-      const { uploadUrl } = await presignedRes.json();
       const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": photoFile.type },
