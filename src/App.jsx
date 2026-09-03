@@ -22,14 +22,124 @@ import {
   MoreVertical,
   ShieldCheck,
   LogOut,
+  Camera,
+  Globe2,
+  LockKeyhole,
 } from "lucide-react";
 
 // Replace with your real deployed API Gateway URL
+function GalleryView({
+  view,
+  photos,
+  department,
+  photoFile,
+  photoCaption,
+  loading,
+  onFileChange,
+  onCaptionChange,
+  onUpload,
+  onPublish,
+  onRefresh,
+}) {
+  const isDepartment = view === "department";
+
+  return (
+    <div className="mx-auto max-w-[1500px] px-5 py-8 md:px-8 lg:px-10 lg:py-10">
+      <section className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+        <div>
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-indigo-600">
+            {isDepartment ? <LockKeyhole size={14} /> : <Globe2 size={14} />}
+            {isDepartment ? `${department} Workspace` : "General Gallery"}
+          </div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
+            {isDepartment ? "Department Photos" : "Public Internship Gallery"}
+          </h1>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 md:text-base">
+            {isDepartment
+              ? "Private photos start here. Publish selected moments to the general gallery."
+              : "A shared collection of photos published by every department."}
+          </p>
+        </div>
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+        >
+          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
+      </section>
+
+      {isDepartment && (
+        <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <label className="flex flex-1 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500 hover:border-indigo-300 hover:bg-indigo-50/40">
+              <ImagePlus size={19} className="text-indigo-600" />
+              <span className="truncate">{photoFile?.name || "Choose a department photo"}</span>
+              <input type="file" accept="image/*" onChange={onFileChange} className="hidden" />
+            </label>
+            <input
+              value={photoCaption}
+              onChange={(event) => onCaptionChange(event.target.value)}
+              placeholder="Caption (optional)"
+              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-indigo-400 focus:bg-white"
+            />
+            <button
+              onClick={onUpload}
+              disabled={!photoFile || loading}
+              className="flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Upload size={16} />
+              Upload Private
+            </button>
+          </div>
+        </section>
+      )}
+
+      {loading && photos.length === 0 ? (
+        <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-sm text-slate-400">
+          Loading photos...
+        </div>
+      ) : photos.length === 0 ? (
+        <div className="flex min-h-[260px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center">
+          <Camera size={30} className="text-slate-300" />
+          <p className="mt-4 text-sm font-semibold text-slate-700">No photos yet</p>
+          <p className="mt-1 text-sm text-slate-400">Published department moments will appear here.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {photos.map((photo) => (
+            <article key={photo.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <img src={photo.imageUrl} alt={photo.caption || "Department photo"} className="h-56 w-full object-cover" />
+              <div className="p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${photo.visibility === "PUBLIC" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                    {photo.visibility === "PUBLIC" ? <Globe2 size={13} /> : <LockKeyhole size={13} />}
+                    {photo.visibility === "PUBLIC" ? "Public" : "Private"}
+                  </span>
+                  {isDepartment && photo.visibility === "PRIVATE" && (
+                    <button onClick={() => onPublish(photo.id)} disabled={loading} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
+                      Make Public
+                    </button>
+                  )}
+                </div>
+                {photo.caption && <p className="mt-3 text-sm text-slate-600">{photo.caption}</p>}
+                <p className="mt-3 text-xs text-slate-400">{photo.department}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const API_URL =
   "https://j6wwoje443.execute-api.us-east-1.amazonaws.com/prod";
 
 function App({ signOut, user }) {
   const [interns, setInterns] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
@@ -38,6 +148,12 @@ function App({ signOut, user }) {
   const [toast, setToast] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [view, setView] = useState("directory");
+  const [photos, setPhotos] = useState([]);
+  const [department, setDepartment] = useState("General");
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoCaption, setPhotoCaption] = useState("");
+  const [photoLoading, setPhotoLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -77,10 +193,6 @@ function App({ signOut, user }) {
   // Fetch interns
   // ─────────────────────────────────────────────
 
-  useEffect(() => {
-    fetchInterns();
-  }, []);
-
   const fetchInterns = async () => {
     setLoading(true);
 
@@ -100,6 +212,39 @@ function App({ signOut, user }) {
       setLoading(false);
     }
   };
+
+  const fetchPhotos = async (photoView) => {
+    setPhotoLoading(true);
+    try {
+      const endpoint = photoView === "gallery" ? "general" : "department";
+      const res = await authenticatedFetch(`${API_URL}/photos/${endpoint}`);
+      if (!res.ok) throw new Error("Failed to fetch photos");
+      const data = await res.json();
+      setPhotos(Array.isArray(data) ? data : []);
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setPhotoLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const loadRole = async () => {
+      const session = await fetchAuthSession();
+      const payload = session.tokens?.idToken?.payload || {};
+      const groups = payload["cognito:groups"] || [];
+      setIsAdmin(Array.isArray(groups) ? groups.includes("admin") : groups === "admin");
+      setDepartment(payload["custom:department"] || "General");
+    };
+
+    loadRole().catch(() => setIsAdmin(false));
+    fetchInterns();
+    fetchPhotos("gallery");
+  }, []);
+
+  useEffect(() => {
+    if (view !== "directory") fetchPhotos(view);
+  }, [view]);
 
   // ─────────────────────────────────────────────
   // Image handling
@@ -123,6 +268,66 @@ function App({ signOut, user }) {
 
     setSelectedFile(file);
     setImagePreview(URL.createObjectURL(file));
+  };
+
+  const handlePhotoUpload = async () => {
+    if (!photoFile) return;
+    setPhotoLoading(true);
+    try {
+      const createRes = await authenticatedFetch(`${API_URL}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: photoFile.name,
+          caption: photoCaption,
+        }),
+      });
+      if (!createRes.ok) throw new Error("Could not create photo record");
+      const photo = await createRes.json();
+
+      const presignedRes = await authenticatedFetch(`${API_URL}/presigned-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: photoFile.name,
+          fileType: photoFile.type,
+          key: photo.s3_key,
+        }),
+      });
+      if (!presignedRes.ok) throw new Error("Could not prepare photo upload");
+      const { uploadUrl } = await presignedRes.json();
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": photoFile.type },
+        body: photoFile,
+      });
+      if (!uploadRes.ok) throw new Error("Photo upload failed");
+
+      setPhotoFile(null);
+      setPhotoCaption("");
+      showToast("Private department photo uploaded");
+      await fetchPhotos("department");
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setPhotoLoading(false);
+    }
+  };
+
+  const publishPhoto = async (photoId) => {
+    setPhotoLoading(true);
+    try {
+      const res = await authenticatedFetch(`${API_URL}/photos/${photoId}/publish`, {
+        method: "PUT",
+      });
+      if (!res.ok) throw new Error("Could not publish photo");
+      showToast("Photo published to the general gallery");
+      await fetchPhotos("department");
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setPhotoLoading(false);
+    }
   };
 
   const uploadImageToS3 = async () => {
@@ -407,9 +612,28 @@ function App({ signOut, user }) {
               Workspace
             </p>
 
-            <button className="flex w-full items-center gap-3 rounded-xl bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700">
+            <button
+              onClick={() => setView("directory")}
+              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold ${view === "directory" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}
+            >
               <Users size={18} />
               Intern Directory
+            </button>
+
+            <button
+              onClick={() => setView("gallery")}
+              className={`mt-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium ${view === "gallery" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}
+            >
+              <Globe2 size={18} />
+              General Gallery
+            </button>
+
+            <button
+              onClick={() => setView("department")}
+              className={`mt-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium ${view === "department" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}
+            >
+              <Camera size={18} />
+              Department Photos
             </button>
 
             <button className="mt-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-900">
@@ -490,6 +714,7 @@ function App({ signOut, user }) {
           </div>
         </div>
 
+        {view === "directory" ? (
         <div className="mx-auto max-w-[1500px] px-5 py-8 md:px-8 lg:px-10 lg:py-10">
           {/* ─────────────────────────────────────
               Hero
@@ -500,7 +725,7 @@ function App({ signOut, user }) {
               <div>
                 <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-indigo-600">
                   <Sparkles size={14} />
-                  Engineering Dashboard
+                  {isAdmin ? "General Admin Dashboard" : "Department Dashboard"}
                 </div>
 
                 <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
@@ -508,8 +733,9 @@ function App({ signOut, user }) {
                 </h1>
 
                 <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 md:text-base">
-                  Manage your interns, track their specializations and keep
-                  their profiles organized in one place.
+                  {isAdmin
+                    ? "View and manage intern profiles across every department."
+                    : "Manage your department's interns and keep their profiles organized."}
                 </p>
               </div>
 
@@ -659,6 +885,21 @@ function App({ signOut, user }) {
             </div>
           )}
         </div>
+        ) : (
+          <GalleryView
+            view={view}
+            photos={photos}
+            department={department}
+            photoFile={photoFile}
+            photoCaption={photoCaption}
+            loading={photoLoading}
+            onFileChange={(event) => setPhotoFile(event.target.files?.[0] || null)}
+            onCaptionChange={setPhotoCaption}
+            onUpload={handlePhotoUpload}
+            onPublish={publishPhoto}
+            onRefresh={() => fetchPhotos(view)}
+          />
+        )}
       </main>
 
       {/* ─────────────────────────────────────────
@@ -1154,4 +1395,15 @@ function EmptyState({ searchQuery, onAdd }) {
   );
 }
 
-export default withAuthenticator(App);
+export default withAuthenticator(App, {
+  formFields: {
+    signUp: {
+      "custom:department": {
+        label: "Department",
+        placeholder: "e.g. SoftwareEngineering",
+        isRequired: true,
+        order: 3,
+      },
+    },
+  },
+});
