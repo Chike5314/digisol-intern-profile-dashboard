@@ -47,17 +47,11 @@ function App({ signOut, user }) {
   const fetchPublicFeed = async () => {
     try {
       const token = await getAuthToken();
-      const headers = { Authorization: token };
-      const [galleryRes, internsRes] = await Promise.all([
-        fetch(`${API_URL}/public/gallery`, { headers }),
-        fetch(`${API_URL}/public/interns`, { headers })
-      ]);
-      if (!galleryRes.ok || !internsRes.ok) throw new Error("Failed to fetch public feed");
-      const [gallery, interns] = await Promise.all([galleryRes.json(), internsRes.json()]);
-      setPublicFeed([
-        ...(Array.isArray(gallery) ? gallery.map((item) => ({ ...item, type: "PHOTO" })) : []),
-        ...(Array.isArray(interns) ? interns.map((item) => ({ ...item, type: "PROFILE" })) : [])
-      ]);
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch(`${API_URL}/public-feed`, { headers });
+      if (!res.ok) throw new Error("Failed to fetch public feed");
+      const data = await res.json();
+      setPublicFeed(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching public feed:", err);
     }
@@ -66,17 +60,11 @@ function App({ signOut, user }) {
   const fetchDeptWorkspace = async () => {
     try {
       const token = await getAuthToken();
-      const headers = { Authorization: token };
-      const [galleryRes, internsRes] = await Promise.all([
-        fetch(`${API_URL}/department/gallery`, { headers }),
-        fetch(`${API_URL}/department/interns`, { headers })
-      ]);
-      if (!galleryRes.ok || !internsRes.ok) throw new Error("Failed to fetch workspace");
-      const [gallery, interns] = await Promise.all([galleryRes.json(), internsRes.json()]);
-      setDeptWorkspace([
-        ...(Array.isArray(gallery) ? gallery.map((item) => ({ ...item, type: "PHOTO" })) : []),
-        ...(Array.isArray(interns) ? interns.map((item) => ({ ...item, type: "PROFILE", id: item.intern_id })) : [])
-      ]);
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await fetch(`${API_URL}/department/workspace`, { headers });
+      if (!res.ok) throw new Error("Failed to fetch workspace");
+      const data = await res.json();
+      setDeptWorkspace(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching workspace:", err);
     }
@@ -95,7 +83,7 @@ function App({ signOut, user }) {
     const token = await getAuthToken();
     await fetch(`${API_URL}/department/publish`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: token },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         id,
         type: item.type === "PHOTO" ? "IMAGE" : "INTERN_PROFILE",
@@ -111,7 +99,7 @@ function App({ signOut, user }) {
     const token = await getAuthToken();
     if (item.type !== "PROFILE") return;
     const endpoint = `${API_URL}/department/interns/${item.id}`;
-    const options = { method: "DELETE", headers: { Authorization: token } };
+    const options = { method: "DELETE", headers: { Authorization: `Bearer ${token}` } };
     await fetch(endpoint, {
       ...options,
     });
@@ -126,7 +114,7 @@ function App({ signOut, user }) {
       const token = await getAuthToken();
       await fetch(`${API_URL}/department/interns`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: token },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           name: internForm.name,
           field: internForm.role,
@@ -155,7 +143,7 @@ function App({ signOut, user }) {
       // 1. Get Presigned S3 URL
       const presignedRes = await fetch(`${API_URL}/department/gallery`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: token },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           fileName: photoForm.file.name,
           fileType: photoForm.file.type,
