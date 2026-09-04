@@ -1,1398 +1,391 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { fetchAuthSession } from "aws-amplify/auth";
+import React, { useState, useEffect } from "react";
 import { withAuthenticator } from "@aws-amplify/ui-react";
-import {
-  UserPlus,
-  Trash2,
-  Edit3,
-  Upload,
-  Briefcase,
-  GraduationCap,
-  Search,
-  Sparkles,
-  RefreshCw,
-  CheckCircle2,
-  AlertCircle,
-  Users,
-  Building2,
-  Activity,
-  X,
-  ChevronRight,
-  ImagePlus,
-  MoreVertical,
-  ShieldCheck,
-  LogOut,
-  Camera,
-  Globe2,
-  LockKeyhole,
-} from "lucide-react";
+import "@aws-amplify/ui-react/styles.css";
+import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
+import { Globe, Lock, LogOut, UserPlus, Upload, Trash2, X, Eye, EyeOff } from "lucide-react";
 
-// Replace with your real deployed API Gateway URL
-function GalleryView({
-  view,
-  photos,
-  department,
-  photoFile,
-  photoCaption,
-  loading,
-  onFileChange,
-  onCaptionChange,
-  onUpload,
-  onPublish,
-  onRefresh,
-}) {
-  const isDepartment = view === "department";
-
-  return (
-    <div className="mx-auto max-w-[1500px] px-5 py-8 md:px-8 lg:px-10 lg:py-10">
-      <section className="mb-8 flex flex-col justify-between gap-5 md:flex-row md:items-end">
-        <div>
-          <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-indigo-600">
-            {isDepartment ? <LockKeyhole size={14} /> : <Globe2 size={14} />}
-            {isDepartment ? `${department} Workspace` : "General Gallery"}
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
-            {isDepartment ? "Department Photos" : "Public Internship Gallery"}
-          </h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 md:text-base">
-            {isDepartment
-              ? "Private photos start here. Publish selected moments to the general gallery."
-              : "A shared collection of photos published by every department."}
-          </p>
-        </div>
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-        >
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-          Refresh
-        </button>
-      </section>
-
-      {isDepartment && (
-        <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center">
-            <label className="flex flex-1 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500 hover:border-indigo-300 hover:bg-indigo-50/40">
-              <ImagePlus size={19} className="text-indigo-600" />
-              <span className="truncate">{photoFile?.name || "Choose a department photo"}</span>
-              <input type="file" accept="image/*" onChange={onFileChange} className="hidden" />
-            </label>
-            <input
-              value={photoCaption}
-              onChange={(event) => onCaptionChange(event.target.value)}
-              placeholder="Caption (optional)"
-              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-indigo-400 focus:bg-white"
-            />
-            <button
-              onClick={onUpload}
-              disabled={!photoFile || loading}
-              className="flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Upload size={16} />
-              Upload Private
-            </button>
-          </div>
-        </section>
-      )}
-
-      {loading && photos.length === 0 ? (
-        <div className="flex min-h-[260px] items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-sm text-slate-400">
-          Loading photos...
-        </div>
-      ) : photos.length === 0 ? (
-        <div className="flex min-h-[260px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white text-center">
-          <Camera size={30} className="text-slate-300" />
-          <p className="mt-4 text-sm font-semibold text-slate-700">No photos yet</p>
-          <p className="mt-1 text-sm text-slate-400">Published department moments will appear here.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {photos.map((photo) => (
-            <article key={photo.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <img src={photo.imageUrl} alt={photo.caption || "Department photo"} className="h-56 w-full object-cover" />
-              <div className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${photo.visibility === "PUBLIC" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                    {photo.visibility === "PUBLIC" ? <Globe2 size={13} /> : <LockKeyhole size={13} />}
-                    {photo.visibility === "PUBLIC" ? "Public" : "Private"}
-                  </span>
-                  {isDepartment && photo.visibility === "PRIVATE" && (
-                    <button onClick={() => onPublish(photo.id)} disabled={loading} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
-                      Make Public
-                    </button>
-                  )}
-                </div>
-                {photo.caption && <p className="mt-3 text-sm text-slate-600">{photo.caption}</p>}
-                <p className="mt-3 text-xs text-slate-400">{photo.department}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const API_URL =
-  "https://j6wwoje443.execute-api.us-east-1.amazonaws.com/prod";
+// Paste your ApiEndpointUrl output from cdk deploy here
+const API_URL = "https://56rud9cawg.execute-api.us-east-1.amazonaws.com/prod";
 
 function App({ signOut, user }) {
-  const [interns, setInterns] = useState([]);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState("");
-  const [editingId, setEditingId] = useState(null);
-  const [toast, setToast] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
-  const [view, setView] = useState("directory");
-  const [photos, setPhotos] = useState([]);
-  const [department, setDepartment] = useState("General");
-  const [photoFile, setPhotoFile] = useState(null);
-  const [photoCaption, setPhotoCaption] = useState("");
-  const [photoLoading, setPhotoLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("public-feed");
+  const [publicFeed, setPublicFeed] = useState([]);
+  const [deptWorkspace, setDeptWorkspace] = useState([]);
+  const [userAttrs, setUserAttrs] = useState({ department: "General", role: "LEAD" });
 
-  const [formData, setFormData] = useState({
-    name: "",
-    field: "",
-    school: "",
-    imageUrl: "",
-  });
+  // Modals
+  const [showInternModal, setShowInternModal] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
 
-  const authenticatedFetch = async (url, options = {}) => {
+  // Forms
+  const [internForm, setInternForm] = useState({ name: "", role: "", institution: "", visibility: "PRIVATE" });
+  const [photoForm, setPhotoForm] = useState({ caption: "", file: null, visibility: "PRIVATE" });
+  const [submitting, setSubmitting] = useState(false);
+
+  // Get Auth Token
+  const getAuthToken = async () => {
     const session = await fetchAuthSession();
-    const idToken = session.tokens?.idToken?.toString();
-
-    return fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        ...(idToken
-          ? { Authorization: `Bearer ${idToken}` }
-          : {}),
-      },
-    });
+    return session.tokens?.idToken?.toString();
   };
 
-  // ─────────────────────────────────────────────
-  // Toast
-  // ─────────────────────────────────────────────
-
-  const showToast = (message, type = "success") => {
-    setToast({ message, type });
-
-    setTimeout(() => {
-      setToast(null);
-    }, 3500);
-  };
-
-  // ─────────────────────────────────────────────
-  // Fetch interns
-  // ─────────────────────────────────────────────
-
-  const fetchInterns = async () => {
-    setLoading(true);
-
-    try {
-      const res = await authenticatedFetch(`${API_URL}/interns`);
-
-      if (!res.ok) {
-        throw new Error("Failed to fetch interns");
-      }
-
-      const data = await res.json();
-
-      setInterns(Array.isArray(data) ? data : []);
-    } catch (err) {
-      showToast(err.message, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchPhotos = async (photoView) => {
-    setPhotoLoading(true);
-    try {
-      const endpoint = photoView === "gallery" ? "general" : "department";
-      const res = await authenticatedFetch(`${API_URL}/photos/${endpoint}`);
-      if (!res.ok) throw new Error("Failed to fetch photos");
-      const data = await res.json();
-      setPhotos(Array.isArray(data) ? data : []);
-    } catch (err) {
-      showToast(err.message, "error");
-    } finally {
-      setPhotoLoading(false);
-    }
-  };
-
+  // Fetch Cognito Attributes safely
   useEffect(() => {
-    const loadRole = async () => {
-      const session = await fetchAuthSession();
-      const payload = session.tokens?.idToken?.payload || {};
-      const groups = payload["cognito:groups"] || [];
-      setIsAdmin(Array.isArray(groups) ? groups.includes("admin") : groups === "admin");
-      setDepartment(payload["custom:department"] || "General");
-    };
-
-    loadRole().catch(() => setIsAdmin(false));
-    fetchInterns();
-    fetchPhotos("gallery");
+    async function loadAttributes() {
+      try {
+        const attrs = await fetchUserAttributes();
+        setUserAttrs({
+          department: attrs["custom:department"] || "General",
+          role: attrs["custom:role"] || "LEAD"
+        });
+      } catch (err) {
+        console.error("Error loading user attributes:", err);
+      }
+    }
+    loadAttributes();
   }, []);
 
+  const fetchPublicFeed = async () => {
+    try {
+      const token = await getAuthToken();
+      const headers = { Authorization: token };
+      const [galleryRes, internsRes] = await Promise.all([
+        fetch(`${API_URL}/public/gallery`, { headers }),
+        fetch(`${API_URL}/public/interns`, { headers })
+      ]);
+      if (!galleryRes.ok || !internsRes.ok) throw new Error("Failed to fetch public feed");
+      const [gallery, interns] = await Promise.all([galleryRes.json(), internsRes.json()]);
+      setPublicFeed([
+        ...(Array.isArray(gallery) ? gallery.map((item) => ({ ...item, type: "PHOTO" })) : []),
+        ...(Array.isArray(interns) ? interns.map((item) => ({ ...item, type: "PROFILE" })) : [])
+      ]);
+    } catch (err) {
+      console.error("Error fetching public feed:", err);
+    }
+  };
+
+  const fetchDeptWorkspace = async () => {
+    try {
+      const token = await getAuthToken();
+      const headers = { Authorization: token };
+      const [galleryRes, internsRes] = await Promise.all([
+        fetch(`${API_URL}/department/gallery`, { headers }),
+        fetch(`${API_URL}/department/interns`, { headers })
+      ]);
+      if (!galleryRes.ok || !internsRes.ok) throw new Error("Failed to fetch workspace");
+      const [gallery, interns] = await Promise.all([galleryRes.json(), internsRes.json()]);
+      setDeptWorkspace([
+        ...(Array.isArray(gallery) ? gallery.map((item) => ({ ...item, type: "PHOTO" })) : []),
+        ...(Array.isArray(interns) ? interns.map((item) => ({ ...item, type: "PROFILE", id: item.intern_id })) : [])
+      ]);
+    } catch (err) {
+      console.error("Error fetching workspace:", err);
+    }
+  };
+
   useEffect(() => {
-    if (view !== "directory") fetchPhotos(view);
-  }, [view]);
+    fetchPublicFeed();
+    fetchDeptWorkspace();
+  }, []);
 
-  // ─────────────────────────────────────────────
-  // Image handling
-  // ─────────────────────────────────────────────
-
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-
-    if (!file) return;
-
-    setSelectedFile(file);
-    setImagePreview(URL.createObjectURL(file));
+  // Handlers
+  const handleToggleVisibility = async (item) => {
+    const id = item.id || item.intern_id;
+    const currentVis = item.visibility;
+    const newVis = currentVis === "PUBLIC" ? "PRIVATE" : "PUBLIC";
+    const token = await getAuthToken();
+    await fetch(`${API_URL}/department/publish`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: token },
+      body: JSON.stringify({
+        id,
+        type: item.type === "PHOTO" ? "IMAGE" : "INTERN_PROFILE",
+        visibility: newVis
+      })
+    });
+    fetchDeptWorkspace();
+    fetchPublicFeed();
   };
 
-  const handleDrop = (e) => {
+  const handleDeleteItem = async (item) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    const token = await getAuthToken();
+    if (item.type !== "PROFILE") return;
+    const endpoint = `${API_URL}/department/interns/${item.id}`;
+    const options = { method: "DELETE", headers: { Authorization: token } };
+    await fetch(endpoint, {
+      ...options,
+    });
+    fetchDeptWorkspace();
+    fetchPublicFeed();
+  };
+
+  const handleAddIntern = async (e) => {
     e.preventDefault();
-
-    const file = e.dataTransfer.files?.[0];
-
-    if (!file || !file.type.startsWith("image/")) return;
-
-    setSelectedFile(file);
-    setImagePreview(URL.createObjectURL(file));
-  };
-
-  const handlePhotoUpload = async () => {
-    if (!photoFile) return;
-    setPhotoLoading(true);
+    setSubmitting(true);
     try {
-      const createRes = await authenticatedFetch(`${API_URL}/photos`, {
+      const token = await getAuthToken();
+      await fetch(`${API_URL}/department/interns`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: token },
         body: JSON.stringify({
-          fileName: photoFile.name,
-          caption: photoCaption,
-        }),
+          name: internForm.name,
+          field: internForm.role,
+          school: internForm.institution
+        })
       });
-      if (!createRes.ok) throw new Error("Could not create photo record");
-      const photo = await createRes.json();
-      const { uploadUrl } = photo;
-
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": photoFile.type },
-        body: photoFile,
-      });
-      if (!uploadRes.ok) throw new Error("Photo upload failed");
-
-      setPhotoFile(null);
-      setPhotoCaption("");
-      showToast("Private department photo uploaded");
-      await fetchPhotos("department");
+      setShowInternModal(false);
+      setInternForm({ name: "", role: "", institution: "", visibility: "PRIVATE" });
+      fetchDeptWorkspace();
+      fetchPublicFeed();
     } catch (err) {
-      showToast(err.message, "error");
+      alert("Error creating profile");
     } finally {
-      setPhotoLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const publishPhoto = async (photoId) => {
-    setPhotoLoading(true);
-    try {
-      const res = await authenticatedFetch(`${API_URL}/photos/${photoId}/publish`, {
-        method: "PUT",
-      });
-      if (!res.ok) throw new Error("Could not publish photo");
-      showToast("Photo published to the general gallery");
-      await fetchPhotos("department");
-    } catch (err) {
-      showToast(err.message, "error");
-    } finally {
-      setPhotoLoading(false);
-    }
-  };
-
-  const uploadImageToS3 = async () => {
-    if (!selectedFile) {
-      return formData.imageUrl;
-    }
-
-    try {
-      const presignedRes = await authenticatedFetch(`${API_URL}/presigned-url`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          fileName: `${Date.now()}_${selectedFile.name}`,
-          fileType: selectedFile.type,
-        }),
-      });
-
-      if (!presignedRes.ok) {
-        throw new Error("Failed to get presigned URL");
-      }
-
-      const { uploadUrl, imageUrl } = await presignedRes.json();
-
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": selectedFile.type,
-        },
-        body: selectedFile,
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error("Direct S3 image upload failed");
-      }
-
-      return imageUrl;
-    } catch (err) {
-      showToast("Image upload failed", "error");
-      return formData.imageUrl;
-    }
-  };
-
-  // ─────────────────────────────────────────────
-  // Form
-  // ─────────────────────────────────────────────
-
-  const handleSubmit = async (e) => {
+  const handleUploadPhoto = async (e) => {
     e.preventDefault();
-
-    if (!formData.name.trim()) {
-      showToast("Please enter the intern's name", "error");
-      return;
-    }
-
-    if (!formData.field.trim()) {
-      showToast("Please enter a specialization", "error");
-      return;
-    }
-
-    if (!formData.school.trim()) {
-      showToast("Please enter the institution", "error");
-      return;
-    }
-
-    setLoading(true);
+    if (!photoForm.file) return alert("Select an image first");
+    setSubmitting(true);
 
     try {
-      const uploadedImageUrl = await uploadImageToS3();
+      const token = await getAuthToken();
 
-      const payload = {
-        ...formData,
-        imageUrl: uploadedImageUrl,
-      };
-
-      if (editingId) {
-        const res = await authenticatedFetch(`${API_URL}/interns/${editingId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          throw new Error("Update failed");
-        }
-
-        showToast("Profile updated successfully");
-      } else {
-        const res = await authenticatedFetch(`${API_URL}/interns`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          throw new Error("Creation failed");
-        }
-
-        showToast("New intern added successfully");
-      }
-
-      resetForm();
-      setShowForm(false);
-      await fetchInterns();
-    } catch (err) {
-      showToast(err.message, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEdit = (intern) => {
-    setEditingId(intern.intern_id);
-
-    setFormData({
-      name: intern.name || "",
-      field: intern.field || "",
-      school: intern.school || "",
-      imageUrl: intern.imageUrl || "",
-    });
-
-    setImagePreview(intern.imageUrl || "");
-    setSelectedFile(null);
-    setShowForm(true);
-  };
-
-  const handleDelete = async () => {
-    if (!deleteId) return;
-
-    setLoading(true);
-
-    try {
-      const res = await authenticatedFetch(`${API_URL}/interns/${deleteId}`, {
-        method: "DELETE",
+      // 1. Get Presigned S3 URL
+      const presignedRes = await fetch(`${API_URL}/department/gallery`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: token },
+        body: JSON.stringify({
+          fileName: photoForm.file.name,
+          fileType: photoForm.file.type,
+          caption: photoForm.caption,
+          visibility: photoForm.visibility
+        })
       });
 
-      if (!res.ok) {
-        throw new Error("Delete failed");
-      }
+      const { uploadUrl } = await presignedRes.json();
 
-      showToast("Intern profile removed");
-      setDeleteId(null);
+      // 2. Direct S3 Upload
+      await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": photoForm.file.type },
+        body: photoForm.file
+      });
 
-      await fetchInterns();
+      setShowPhotoModal(false);
+      setPhotoForm({ caption: "", file: null, visibility: "PRIVATE" });
+      fetchDeptWorkspace();
+      fetchPublicFeed();
     } catch (err) {
-      showToast(err.message, "error");
+      alert("Error uploading image");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      field: "",
-      school: "",
-      imageUrl: "",
-    });
-
-    setSelectedFile(null);
-    setImagePreview("");
-    setEditingId(null);
-  };
-
-  const closeForm = () => {
-    resetForm();
-    setShowForm(false);
-  };
-
-  // ─────────────────────────────────────────────
-  // Search
-  // ─────────────────────────────────────────────
-
-  const filteredInterns = useMemo(() => {
-    const query = searchQuery.toLowerCase().trim();
-
-    if (!query) return interns;
-
-    return interns.filter((intern) => {
-      return (
-        intern.name?.toLowerCase().includes(query) ||
-        intern.field?.toLowerCase().includes(query) ||
-        intern.school?.toLowerCase().includes(query)
-      );
-    });
-  }, [interns, searchQuery]);
-
-  // ─────────────────────────────────────────────
-  // Statistics
-  // ─────────────────────────────────────────────
-
-  const uniqueSchools = new Set(
-    interns.map((intern) => intern.school).filter(Boolean)
-  ).size;
-
-  const uniqueFields = new Set(
-    interns.map((intern) => intern.field).filter(Boolean)
-  ).size;
-
-  // ─────────────────────────────────────────────
-  // UI
-  // ─────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-[#f6f8fc] text-slate-900">
-      {/* ─────────────────────────────────────────
-          Toast
-      ───────────────────────────────────────── */}
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
+      {/* Sidebar */}
+      <aside className="w-64 border-r border-slate-200 bg-white flex flex-col justify-between">
+        <div>
+          <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white font-bold">D</div>
+            <div>
+              <h1 className="font-bold text-slate-900 leading-none">Digisol Portal</h1>
+              <span className="text-xs text-slate-400 font-medium">{userAttrs.department}</span>
+            </div>
+          </div>
 
-      {toast && (
-        <div className="fixed top-6 right-6 z-[100] animate-[slideIn_.3s_ease-out]">
-          <div
-            className={`flex items-center gap-3 rounded-2xl border px-5 py-4 shadow-2xl backdrop-blur-xl ${
-              toast.type === "error"
-                ? "border-red-200 bg-white text-red-600"
-                : "border-emerald-200 bg-white text-emerald-600"
-            }`}
-          >
-            <div
-              className={`flex h-9 w-9 items-center justify-center rounded-full ${
-                toast.type === "error"
-                  ? "bg-red-50"
-                  : "bg-emerald-50"
+          <nav className="p-4 space-y-2">
+            <p className="text-[10px] font-bold uppercase text-slate-400 px-3">General Space</p>
+            <button
+              onClick={() => setActiveTab("public-feed")}
+              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                activeTab === "public-feed" ? "bg-indigo-50 text-indigo-600" : "text-slate-600 hover:bg-slate-50"
               }`}
             >
-              {toast.type === "error" ? (
-                <AlertCircle size={19} />
-              ) : (
-                <CheckCircle2 size={19} />
-              )}
-            </div>
+              <Globe size={18} />
+              <span>Public Feed</span>
+            </button>
 
-            <div>
-              <p className="text-sm font-semibold">
-                {toast.type === "error" ? "Something went wrong" : "Success"}
-              </p>
-              <p className="text-xs text-slate-500">{toast.message}</p>
-            </div>
-
+            <p className="text-[10px] font-bold uppercase text-slate-400 px-3 pt-4">Department Space</p>
             <button
-              onClick={() => setToast(null)}
-              className="ml-2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              onClick={() => setActiveTab("dept-workspace")}
+              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                activeTab === "dept-workspace" ? "bg-indigo-50 text-indigo-600" : "text-slate-600 hover:bg-slate-50"
+              }`}
             >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────
-          Navigation
-      ───────────────────────────────────────── */}
-
-      <aside className="fixed left-0 top-0 hidden h-screen w-64 border-r border-slate-200 bg-white lg:block">
-        <div className="flex h-full flex-col">
-          {/* Logo */}
-          <div className="flex h-20 items-center border-b border-slate-100 px-7">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-200">
-                <Sparkles size={20} className="text-white" />
-              </div>
-
-              <div>
-                <p className="text-base font-bold tracking-tight text-slate-900">
-                  Digisol
-                </p>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Engineering
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 px-4 py-6">
-            <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
-              Workspace
-            </p>
-
-            <button
-              onClick={() => setView("directory")}
-              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold ${view === "directory" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}
-            >
-              <Users size={18} />
-              Intern Directory
-            </button>
-
-            <button
-              onClick={() => setView("gallery")}
-              className={`mt-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium ${view === "gallery" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}
-            >
-              <Globe2 size={18} />
-              General Gallery
-            </button>
-
-            <button
-              onClick={() => setView("department")}
-              className={`mt-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium ${view === "department" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}
-            >
-              <Camera size={18} />
-              Department Photos
-            </button>
-
-            <button className="mt-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-900">
-              <Activity size={18} />
-              Activity
-            </button>
-
-            <button className="mt-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-500 transition hover:bg-slate-50 hover:text-slate-900">
-              <Building2 size={18} />
-              Institutions
+              <Lock size={18} />
+              <span>My Workspace</span>
             </button>
           </nav>
+        </div>
 
-          {/* Bottom card */}
-          <div className="p-4">
-            <div className="rounded-2xl bg-slate-900 p-4 text-white">
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-white/10">
-                <ShieldCheck size={18} />
-              </div>
-
-              <p className="text-sm font-semibold">
-                Internship Management
-              </p>
-
-              <p className="mt-1 text-xs leading-5 text-slate-400">
-                Keep your engineering talent directory organized and up to
-                date.
-              </p>
-            </div>
-
-            <button
-              onClick={signOut}
-              className="mt-3 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
-            >
-              <LogOut size={17} />
-              <span>Sign out</span>
-              {user?.username && (
-                <span className="ml-auto max-w-28 truncate text-xs text-slate-400">
-                  {user.username}
-                </span>
-              )}
-            </button>
+        <div className="p-4 border-t border-slate-100 space-y-3">
+          <div className="px-2">
+            <p className="text-xs text-slate-400">Department Role</p>
+            <p className="text-sm font-bold text-slate-800">👑 {userAttrs.role}</p>
           </div>
+          <button onClick={signOut} className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 border border-red-100">
+            <LogOut size={18} />
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
 
-      {/* ─────────────────────────────────────────
-          Main content
-      ───────────────────────────────────────── */}
+      {/* Main Panel */}
+      <main className="flex-1 overflow-y-auto p-8">
+        {activeTab === "public-feed" ? (
+          <div>
+            <h2 className="text-2xl font-bold mb-1">Public Gallery Feed</h2>
+            <p className="text-sm text-slate-500 mb-6">Shared internship photos and profiles from all departments.</p>
 
-      <main className="lg:ml-64">
-        {/* Mobile header */}
-        <div className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5 lg:hidden">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600">
-              <Sparkles size={18} className="text-white" />
-            </div>
-
-            <span className="font-bold">Digisol</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={signOut}
-              title="Sign out"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-            >
-              <LogOut size={17} />
-            </button>
-
-            <button
-              onClick={() => setShowForm(true)}
-              title="Add intern"
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white"
-            >
-              <UserPlus size={18} />
-            </button>
-          </div>
-        </div>
-
-        {view === "directory" ? (
-        <div className="mx-auto max-w-[1500px] px-5 py-8 md:px-8 lg:px-10 lg:py-10">
-          {/* ─────────────────────────────────────
-              Hero
-          ───────────────────────────────────── */}
-
-          <section className="mb-8">
-            <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-              <div>
-                <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-indigo-600">
-                  <Sparkles size={14} />
-                  {isAdmin ? "General Admin Dashboard" : "Department Dashboard"}
-                </div>
-
-                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
-                  Intern Directory
-                </h1>
-
-                <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500 md:text-base">
-                  {isAdmin
-                    ? "View and manage intern profiles across every department."
-                    : "Manage your department's interns and keep their profiles organized."}
-                </p>
-              </div>
-
-              <div className="hidden items-center gap-3 lg:flex">
-                <button
-                  onClick={signOut}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                >
-                  <LogOut size={17} />
-                  Sign out
-                </button>
-
-                <button
-                  onClick={() => {
-                    resetForm();
-                    setShowForm(true);
-                  }}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition hover:-translate-y-0.5 hover:bg-indigo-700"
-                >
-                  <UserPlus size={17} />
-                  Add Intern
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* ─────────────────────────────────────
-              Stats
-          ───────────────────────────────────── */}
-
-          <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <StatCard
-              icon={<Users size={20} />}
-              label="Total Interns"
-              value={interns.length}
-              description="Registered profiles"
-              iconClass="bg-indigo-50 text-indigo-600"
-            />
-
-            <StatCard
-              icon={<Briefcase size={20} />}
-              label="Specializations"
-              value={uniqueFields}
-              description="Different fields"
-              iconClass="bg-violet-50 text-violet-600"
-            />
-
-            <StatCard
-              icon={<Building2 size={20} />}
-              label="Institutions"
-              value={uniqueSchools}
-              description="Universities & schools"
-              iconClass="bg-emerald-50 text-emerald-600"
-            />
-          </section>
-
-          {/* ─────────────────────────────────────
-              Directory toolbar
-          ───────────────────────────────────── */}
-
-          <section className="mb-6">
-            <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-              <div className="relative flex-1 md:max-w-xl">
-                <Search
-                  size={18}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-
-                <input
-                  type="text"
-                  placeholder="Search by name, specialization or institution..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50"
-                />
-
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:bg-slate-200"
-                  >
-                    <X size={15} />
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="hidden rounded-xl bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-500 sm:block">
-                  {filteredInterns.length}{" "}
-                  {filteredInterns.length === 1 ? "profile" : "profiles"}
-                </div>
-
-                <button
-                  onClick={fetchInterns}
-                  disabled={loading}
-                  className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <RefreshCw
-                    size={16}
-                    className={loading ? "animate-spin" : ""}
-                  />
-                  <span className="hidden sm:inline">Refresh</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    resetForm();
-                    setShowForm(true);
-                  }}
-                  className="flex h-11 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 lg:hidden"
-                >
-                  <UserPlus size={16} />
-                  Add
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* ─────────────────────────────────────
-              Loading state
-          ───────────────────────────────────── */}
-
-          {loading && interns.length === 0 ? (
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {[1, 2, 3, 4, 5, 6].map((item) => (
-                <SkeletonCard key={item} />
-              ))}
-            </div>
-          ) : filteredInterns.length === 0 ? (
-            <EmptyState
-              searchQuery={searchQuery}
-              onAdd={() => {
-                resetForm();
-                setShowForm(true);
-              }}
-            />
-          ) : (
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {filteredInterns.map((intern) => (
-                <InternCard
-                  key={intern.intern_id}
-                  intern={intern}
-                  onEdit={() => handleEdit(intern)}
-                  onDelete={() => setDeleteId(intern.intern_id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-        ) : (
-          <GalleryView
-            view={view}
-            photos={photos}
-            department={department}
-            photoFile={photoFile}
-            photoCaption={photoCaption}
-            loading={photoLoading}
-            onFileChange={(event) => setPhotoFile(event.target.files?.[0] || null)}
-            onCaptionChange={setPhotoCaption}
-            onUpload={handlePhotoUpload}
-            onPublish={publishPhoto}
-            onRefresh={() => fetchPhotos(view)}
-          />
-        )}
-      </main>
-
-      {/* ─────────────────────────────────────────
-          Form modal
-      ───────────────────────────────────────── */}
-
-      {showForm && (
-        <div className="fixed inset-0 z-[90] flex justify-end">
-          <div
-            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
-            onClick={closeForm}
-          />
-
-          <div className="relative h-full w-full max-w-xl overflow-y-auto bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/95 px-6 py-5 backdrop-blur-xl">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.15em] text-indigo-600">
-                  {editingId ? "Edit profile" : "New profile"}
-                </p>
-
-                <h2 className="mt-1 text-xl font-bold text-slate-900">
-                  {editingId
-                    ? "Update intern profile"
-                    : "Register an intern"}
-                </h2>
-              </div>
-
-              <button
-                onClick={closeForm}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
-              >
-                <X size={19} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6">
-              {/* Avatar */}
-              <div className="mb-8 flex flex-col items-center">
-                <div
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleDrop}
-                  className="group relative flex h-32 w-32 cursor-pointer items-center justify-center overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-xl ring-1 ring-slate-200"
-                >
-                  {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt="Profile preview"
-                      className="h-full w-full object-cover"
-                    />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {publicFeed.map((item) => (
+                <div key={item.id || item.intern_id} className="rounded-2xl border bg-white p-5 shadow-sm">
+                  {item.type === "PHOTO" ? (
+                    <div>
+                      <img src={item.imageUrl} alt={item.caption} className="h-48 w-full object-cover rounded-xl" />
+                      <p className="mt-2 text-xs font-semibold text-slate-600">{item.caption}</p>
+                    </div>
                   ) : (
-                    <div className="flex flex-col items-center text-slate-400">
-                      <ImagePlus size={28} />
-                      <span className="mt-1 text-[10px] font-semibold">
-                        ADD PHOTO
-                      </span>
+                    <div>
+                      <h3 className="font-bold text-slate-900">{item.name}</h3>
+                      <p className="text-xs text-indigo-600">{item.field}</p>
+                      <p className="text-xs text-slate-400 mt-2">{item.school}</p>
+                    </div>
+                  )}
+                  <span className="mt-4 inline-block text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600">
+                    Dept: {item.department}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold">{userAttrs.department} Workspace</h2>
+                <p className="text-sm text-slate-500">Manage internal profiles, S3 images, and visibility settings.</p>
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => setShowPhotoModal(true)} className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-slate-800">
+                  <Upload size={16} /> Upload Photo
+                </button>
+                <button onClick={() => setShowInternModal(true)} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-indigo-700">
+                  <UserPlus size={16} /> Add Intern
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {deptWorkspace.map((item) => (
+                <div key={item.id || item.intern_id} className="rounded-2xl border bg-white p-5 shadow-sm flex flex-col justify-between">
+                  {item.type === "PHOTO" ? (
+                    <div>
+                      <img src={item.imageUrl} alt={item.caption} className="h-48 w-full object-cover rounded-xl" />
+                      <p className="mt-2 text-xs font-semibold text-slate-600">{item.caption}</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <h3 className="font-bold text-slate-900">{item.name}</h3>
+                      <p className="text-xs text-indigo-600">{item.field}</p>
+                      <p className="text-xs text-slate-400 mt-2">{item.school}</p>
                     </div>
                   )}
 
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-950/50 opacity-0 transition group-hover:opacity-100">
-                    <Upload size={22} className="text-white" />
-                  </div>
+                  <div className="mt-4 pt-3 border-t flex justify-between items-center">
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${item.visibility === "PUBLIC" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                      {item.visibility}
+                    </span>
 
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                  />
-                </div>
-
-                <p className="mt-3 text-xs text-slate-400">
-                  Click or drag an image here
-                </p>
-              </div>
-
-              {/* Fields */}
-              <div className="space-y-5">
-                <FormField
-                  label="Full Name"
-                  required
-                  icon={<Users size={17} />}
-                >
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Jane Doe"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        name: e.target.value,
-                      })
-                    }
-                    className="form-input"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Specialization / Role"
-                  required
-                  icon={<Briefcase size={17} />}
-                >
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Software Engineering"
-                    value={formData.field}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        field: e.target.value,
-                      })
-                    }
-                    className="form-input"
-                  />
-                </FormField>
-
-                <FormField
-                  label="Institution / University"
-                  required
-                  icon={<GraduationCap size={17} />}
-                >
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. University of Buea"
-                    value={formData.school}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        school: e.target.value,
-                      })
-                    }
-                    className="form-input"
-                  />
-                </FormField>
-              </div>
-
-              {/* Buttons */}
-              <div className="mt-10 flex gap-3 border-t border-slate-100 pt-6">
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  className="flex-1 rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex flex-[1.5] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-100 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loading ? (
-                    <>
-                      <RefreshCw size={16} className="animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      {editingId ? (
-                        <CheckCircle2 size={17} />
-                      ) : (
-                        <UserPlus size={17} />
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleToggleVisibility(item)} className="flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-100 font-semibold">
+                        {item.visibility === "PUBLIC" ? <EyeOff size={14} /> : <Eye size={14} />}
+                        {item.visibility === "PUBLIC" ? "Make Private" : "Publish"}
+                      </button>
+                      {item.type === "PROFILE" && (
+                        <button onClick={() => handleDeleteItem(item)} className="p-1.5 text-slate-400 hover:text-red-600">
+                          <Trash2 size={16} />
+                        </button>
                       )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </main>
 
-                      {editingId ? "Save Changes" : "Create Profile"}
-                    </>
-                  )}
-                </button>
-              </div>
+      {/* Modal: Add Intern */}
+      {showInternModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="font-bold text-slate-900">Add Department Intern</h3>
+              <button onClick={() => setShowInternModal(false)}><X size={18} /></button>
+            </div>
+            <form onSubmit={handleAddIntern} className="mt-4 space-y-3">
+              <input type="text" placeholder="Full Name" required value={internForm.name} onChange={e => setInternForm({...internForm, name: e.target.value})} className="w-full rounded-xl border p-2.5 text-sm outline-none" />
+              <input type="text" placeholder="Role / Specialization" required value={internForm.role} onChange={e => setInternForm({...internForm, role: e.target.value})} className="w-full rounded-xl border p-2.5 text-sm outline-none" />
+              <input type="text" placeholder="Institution" required value={internForm.institution} onChange={e => setInternForm({...internForm, institution: e.target.value})} className="w-full rounded-xl border p-2.5 text-sm outline-none" />
+              <select value={internForm.visibility} onChange={e => setInternForm({...internForm, visibility: e.target.value})} className="w-full rounded-xl border p-2.5 text-sm outline-none">
+                <option value="PRIVATE">Keep Private to Department</option>
+                <option value="PUBLIC">Publish Directly to General Feed</option>
+              </select>
+              <button type="submit" disabled={submitting} className="w-full bg-indigo-600 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-indigo-700">
+                {submitting ? "Saving..." : "Create Profile"}
+              </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* ─────────────────────────────────────────
-          Delete modal
-      ───────────────────────────────────────── */}
-
-      {deleteId && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/50 p-5 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-white p-7 shadow-2xl">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-              <Trash2 size={22} />
+      {/* Modal: Upload Photo */}
+      {showPhotoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="font-bold text-slate-900">Upload Department Photo</h3>
+              <button onClick={() => setShowPhotoModal(false)}><X size={18} /></button>
             </div>
-
-            <h3 className="mt-5 text-xl font-bold text-slate-900">
-              Delete this profile?
-            </h3>
-
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              This action will permanently remove the intern profile. This
-              cannot be undone.
-            </p>
-
-            <div className="mt-7 flex gap-3">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                Cancel
+            <form onSubmit={handleUploadPhoto} className="mt-4 space-y-3">
+              <input type="file" accept="image/*" required onChange={e => setPhotoForm({...photoForm, file: e.target.files[0]})} className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700" />
+              <input type="text" placeholder="Caption / Description" value={photoForm.caption} onChange={e => setPhotoForm({...photoForm, caption: e.target.value})} className="w-full rounded-xl border p-2.5 text-sm outline-none" />
+              <select value={photoForm.visibility} onChange={e => setPhotoForm({...photoForm, visibility: e.target.value})} className="w-full rounded-xl border p-2.5 text-sm outline-none">
+                <option value="PRIVATE">Keep Private to Department</option>
+                <option value="PUBLIC">Publish Directly to General Feed</option>
+              </select>
+              <button type="submit" disabled={submitting} className="w-full bg-slate-900 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-slate-800">
+                {submitting ? "Uploading..." : "Upload Image"}
               </button>
-
-              <button
-                onClick={handleDelete}
-                disabled={loading}
-                className="flex-1 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {loading ? "Deleting..." : "Delete Profile"}
-              </button>
-            </div>
+            </form>
           </div>
         </div>
-      )}
-
-      {/* Small animation */}
-      <style>{`
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateX(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-
-        .form-input {
-          width: 100%;
-          height: 48px;
-          border-radius: 12px;
-          border: 1px solid rgb(226 232 240);
-          background: rgb(248 250 252);
-          padding: 0 14px;
-          font-size: 14px;
-          color: rgb(15 23 42);
-          outline: none;
-          transition: all 0.2s ease;
-        }
-
-        .form-input::placeholder {
-          color: rgb(148 163 184);
-        }
-
-        .form-input:focus {
-          border-color: rgb(129 140 248);
-          background: white;
-          box-shadow: 0 0 0 4px rgb(238 242 255);
-        }
-      `}</style>
-    </div>
-  );
-}
-
-
-// ─────────────────────────────────────────────
-// Stat card
-// ─────────────────────────────────────────────
-
-function StatCard({
-  icon,
-  label,
-  value,
-  description,
-  iconClass,
-}) {
-  return (
-    <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="flex items-start justify-between">
-        <div
-          className={`flex h-11 w-11 items-center justify-center rounded-xl ${iconClass}`}
-        >
-          {icon}
-        </div>
-
-        <ChevronRight
-          size={17}
-          className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-slate-500"
-        />
-      </div>
-
-      <div className="mt-5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          {label}
-        </p>
-
-        <div className="mt-1 flex items-end gap-2">
-          <span className="text-3xl font-extrabold tracking-tight text-slate-900">
-            {value}
-          </span>
-
-          <span className="mb-1 text-xs text-slate-400">
-            {description}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// Form field
-// ─────────────────────────────────────────────
-
-function FormField({ label, icon, required, children }) {
-  return (
-    <div>
-      <label className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-        <span className="text-indigo-500">{icon}</span>
-        {label}
-
-        {required && (
-          <span className="text-red-500">*</span>
-        )}
-      </label>
-
-      {children}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// Intern card
-// ─────────────────────────────────────────────
-
-function InternCard({ intern, onEdit, onDelete }) {
-  return (
-    <article className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-100/40">
-      {/* Top accent */}
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-indigo-400 opacity-0 transition group-hover:opacity-100" />
-
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <img
-              src={
-                intern.imageUrl ||
-                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200"
-              }
-              alt={intern.name || "Intern"}
-              className="h-16 w-16 rounded-2xl object-cover ring-4 ring-slate-50 transition group-hover:ring-indigo-50"
-            />
-
-            <span className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-500" />
-          </div>
-
-          <div className="min-w-0">
-            <h3 className="truncate text-base font-bold text-slate-900 group-hover:text-indigo-700">
-              {intern.name || "Unnamed Intern"}
-            </h3>
-
-            <p className="mt-1 truncate text-xs font-medium text-indigo-600">
-              {intern.field || "Engineering"}
-            </p>
-          </div>
-        </div>
-
-        <div className="relative flex gap-1">
-          <button
-            onClick={onEdit}
-            title="Edit profile"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-600"
-          >
-            <Edit3 size={16} />
-          </button>
-
-          <button
-            onClick={onDelete}
-            title="Delete profile"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-600"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      </div>
-
-      <div className="my-5 h-px bg-slate-100" />
-
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
-            <GraduationCap size={16} />
-          </div>
-
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Institution
-            </p>
-
-            <p className="mt-0.5 truncate text-xs font-medium text-slate-700">
-              {intern.school || "Not specified"}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-500">
-            <Briefcase size={16} />
-          </div>
-
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Specialization
-            </p>
-
-            <p className="mt-0.5 truncate text-xs font-medium text-slate-700">
-              {intern.field || "Not specified"}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600">
-          Active
-        </span>
-
-        <span className="font-mono text-[10px] text-slate-400">
-          #{intern.intern_id?.slice(0, 8) || "N/A"}
-        </span>
-      </div>
-    </article>
-  );
-}
-
-// ─────────────────────────────────────────────
-// Skeleton
-// ─────────────────────────────────────────────
-
-function SkeletonCard() {
-  return (
-    <div className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5">
-      <div className="flex items-center gap-4">
-        <div className="h-16 w-16 rounded-2xl bg-slate-200" />
-
-        <div className="flex-1">
-          <div className="h-4 w-32 rounded bg-slate-200" />
-          <div className="mt-2 h-3 w-24 rounded bg-slate-100" />
-        </div>
-      </div>
-
-      <div className="my-5 h-px bg-slate-100" />
-
-      <div className="space-y-4">
-        <div className="h-9 rounded bg-slate-100" />
-        <div className="h-9 rounded bg-slate-100" />
-      </div>
-
-      <div className="mt-5 h-7 rounded bg-slate-100" />
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// Empty state
-// ─────────────────────────────────────────────
-
-function EmptyState({ searchQuery, onAdd }) {
-  return (
-    <div className="flex min-h-[420px] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white px-6 text-center">
-      <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-indigo-50 text-indigo-500">
-        {searchQuery ? (
-          <Search size={30} />
-        ) : (
-          <Users size={30} />
-        )}
-      </div>
-
-      <h3 className="mt-6 text-lg font-bold text-slate-900">
-        {searchQuery
-          ? "No interns found"
-          : "Your directory is empty"}
-      </h3>
-
-      <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-        {searchQuery
-          ? `We couldn't find any profiles matching "${searchQuery}". Try another search.`
-          : "Start building your intern directory by adding your first profile."}
-      </p>
-
-      {!searchQuery && (
-        <button
-          onClick={onAdd}
-          className="mt-6 flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-100 hover:bg-indigo-700"
-        >
-          <UserPlus size={17} />
-          Add First Intern
-        </button>
       )}
     </div>
   );
 }
 
 export default withAuthenticator(App, {
+  signUpAttributes: ["email"],
   formFields: {
     signUp: {
       "custom:department": {
-        label: "Department",
-        placeholder: "e.g. SoftwareEngineering",
+        order: 1,
+        placeholder: "Enter Department Name (e.g. SoftwareEngineering)",
+        label: "Department Name",
         isRequired: true,
-        order: 3,
+      },
+      "custom:role": {
+        order: 2,
+        placeholder: "Role (LEAD or MEMBER)",
+        label: "Role",
+        isRequired: true,
       },
     },
   },
