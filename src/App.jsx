@@ -81,7 +81,7 @@ function App({ signOut, user }) {
     const currentVis = item.visibility;
     const newVis = currentVis === "PUBLIC" ? "PRIVATE" : "PUBLIC";
     const token = await getAuthToken();
-    await fetch(`${API_URL}/department/publish`, {
+    const res = await fetch(`${API_URL}/department/visibility`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({
@@ -90,6 +90,10 @@ function App({ signOut, user }) {
         visibility: newVis
       })
     });
+    if (!res.ok) {
+      console.error("Failed to update visibility status");
+      return;
+    }
     fetchDeptWorkspace();
     fetchPublicFeed();
   };
