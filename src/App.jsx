@@ -51,8 +51,12 @@ function App({ signOut, user }) {
   const fetchPublicFeed = async () => {
     try {
       const token = await getAuthToken();
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = { Authorization: token };
       const res = await fetch(`${API_URL}/public-feed`, { headers });
+      if (res.status === 401) {
+        signOut();
+        throw new Error("Your session expired. Please sign in again.");
+      }
       if (!res.ok) throw new Error("Failed to fetch public feed");
       const data = await res.json();
       setPublicFeed(Array.isArray(data) ? data : []);
@@ -64,8 +68,12 @@ function App({ signOut, user }) {
   const fetchDeptWorkspace = async () => {
     try {
       const token = await getAuthToken();
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = { Authorization: token };
       const res = await fetch(`${API_URL}/department/workspace`, { headers });
+      if (res.status === 401) {
+        signOut();
+        throw new Error("Your session expired. Please sign in again.");
+      }
       if (!res.ok) throw new Error("Failed to fetch workspace");
       const data = await res.json();
       setDeptWorkspace(Array.isArray(data) ? data : []);
@@ -87,7 +95,7 @@ function App({ signOut, user }) {
     const token = await getAuthToken();
     const res = await fetch(`${API_URL}/department/visibility`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json", Authorization: token },
       body: JSON.stringify({
         id,
         type: item.type === "PHOTO" ? "IMAGE" : "INTERN_PROFILE",
@@ -107,7 +115,7 @@ function App({ signOut, user }) {
     const token = await getAuthToken();
     if (item.type !== "PROFILE") return;
     const endpoint = `${API_URL}/department/interns/${item.id}`;
-    const options = { method: "DELETE", headers: { Authorization: `Bearer ${token}` } };
+    const options = { method: "DELETE", headers: { Authorization: token } };
     await fetch(endpoint, {
       ...options,
     });
@@ -122,7 +130,7 @@ function App({ signOut, user }) {
       const token = await getAuthToken();
       await fetch(`${API_URL}/department/interns`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: token },
         body: JSON.stringify({
           name: internForm.name,
           field: internForm.role,
@@ -151,7 +159,7 @@ function App({ signOut, user }) {
       // 1. Get Presigned S3 URL
       const presignedRes = await fetch(`${API_URL}/department/gallery`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: token },
         body: JSON.stringify({
           fileName: photoForm.file.name,
           fileType: photoForm.file.type,
