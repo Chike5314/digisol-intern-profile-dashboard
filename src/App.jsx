@@ -24,8 +24,12 @@ function App({ signOut, user }) {
 
   // Get Auth Token
   const getAuthToken = async () => {
-    const session = await fetchAuthSession();
-    return session.tokens?.idToken?.toString();
+    const session = await fetchAuthSession({ forceRefresh: true });
+    const token = session.tokens?.idToken?.toString();
+    if (!token) {
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+    return token;
   };
 
   // Fetch Cognito Attributes safely
