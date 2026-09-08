@@ -64,13 +64,20 @@ class DigisollInternProfileDashboardBackendStack(Stack):
             self_sign_up_enabled=True,
             sign_in_aliases=cognito.SignInAliases(email=True),
             auto_verify=cognito.AutoVerifiedAttrs(email=True),
-            removal_policy=RemovalPolicy.DESTROY
+            removal_policy=RemovalPolicy.DESTROY,
+
+            custom_attributes={
+                "department": cognito.StringAttribute(mutable=True),
+                "role": cognito.StringAttribute(mutable=True),
+            }
         )
 
         user_pool_client = user_pool.add_client(
             "DigisolUserPoolClientV2",
             user_pool_client_name="digisol-interns-web-client-v2",
-            generate_secret=False
+            generate_secret=False,
+            read_attributes=cognito.ClientAttributes().with_standard_attributes(email=True).with_custom_attributes("department", "role"),
+            write_attributes=cognito.ClientAttributes().with_standard_attributes(email=True).with_custom_attributes("department", "role")
         )
 
         # 4. Lambda Function
@@ -120,7 +127,7 @@ class DigisollInternProfileDashboardBackendStack(Stack):
         # --- Route Definitions ---
         # GET /public-feed
         public_feed = api.root.add_resource("public-feed")
-        public_feed.add_method("GET", integration, **auth_opts)
+        public_feed.add_method("GET", integration)
 
         # /department
         dept = api.root.add_resource("department")

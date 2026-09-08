@@ -4,8 +4,8 @@ import "@aws-amplify/ui-react/styles.css";
 import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import { Globe, Lock, LogOut, UserPlus, Upload, Trash2, X, Eye, EyeOff } from "lucide-react";
 
-const RAW_API_URL = import.meta.env.VITE_API_URL || "https://56rud9cawg.execute-api.us-east-1.amazonaws.com/prod";
-const API_URL = RAW_API_URL.replace(/\/+$/, "");
+// Use Vite environment variable directly with clean trailing slash strip
+const API_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/+$/, "");
 
 function App({ signOut, user }) {
   const [activeTab, setActiveTab] = useState("public-feed");
@@ -49,8 +49,10 @@ function App({ signOut, user }) {
 
   const fetchPublicFeed = async () => {
     try {
-      const token = await getAuthToken();
-      const res = await fetch(`${API_URL}/public-feed`, { headers: { Authorization: token } });
+      const authHeader = await getAuthToken();
+      const res = await fetch(`${API_URL}/public-feed`, { 
+        headers: { Authorization: authHeader } 
+      });
       if (res.status === 401) return signOut();
       if (!res.ok) throw new Error("Failed to fetch feed");
       const data = await res.json();
@@ -62,8 +64,10 @@ function App({ signOut, user }) {
 
   const fetchDeptWorkspace = async () => {
     try {
-      const token = await getAuthToken();
-      const res = await fetch(`${API_URL}/department/workspace`, { headers: { Authorization: token } });
+      const authHeader = await getAuthToken();
+      const res = await fetch(`${API_URL}/department/workspace`, { 
+        headers: { Authorization: authHeader } 
+      });
       if (res.status === 401) return signOut();
       if (!res.ok) throw new Error("Failed to fetch workspace");
       const data = await res.json();
@@ -388,3 +392,7 @@ export default withAuthenticator(App, {
     },
   },
 });
+
+console.log("VITE_API_URL:", import.meta.env.VITE_API_URL);
+console.log("UserPool ID:", import.meta.env.VITE_COGNITO_USER_POOL_ID);
+console.log("ClientID:", import.meta.env.VITE_COGNITO_USER_POOL_CLIENT_ID);
