@@ -4,8 +4,8 @@ import "@aws-amplify/ui-react/styles.css";
 import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import { Globe, Lock, LogOut, UserPlus, Upload, Trash2, X, Eye, EyeOff } from "lucide-react";
 
-// Paste your ApiEndpointUrl output from cdk deploy here
-const API_URL = "https://56rud9cawg.execute-api.us-east-1.amazonaws.com/prod";
+const RAW_API_URL = import.meta.env.VITE_API_URL || "https://56rud9cawg.execute-api.us-east-1.amazonaws.com/prod";
+const API_URL = RAW_API_URL.replace(/\/+$/, "");
 
 function App({ signOut, user }) {
   const [activeTab, setActiveTab] = useState("public-feed");
@@ -13,26 +13,25 @@ function App({ signOut, user }) {
   const [deptWorkspace, setDeptWorkspace] = useState([]);
   const [userAttrs, setUserAttrs] = useState({ department: "General", role: "LEAD" });
 
-  // Modals
   const [showInternModal, setShowInternModal] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
 
-  // Forms
   const [internForm, setInternForm] = useState({ name: "", role: "", institution: "", visibility: "PRIVATE" });
   const [photoForm, setPhotoForm] = useState({ caption: "", file: null, visibility: "PRIVATE" });
   const [submitting, setSubmitting] = useState(false);
 
-  // Get Auth Token
   const getAuthToken = async () => {
-    const session = await fetchAuthSession({ forceRefresh: true });
-    const token = session.tokens?.idToken?.toString();
-    if (!token) {
-      throw new Error("Your session has expired. Please sign in again.");
+    try {
+      const session = await fetchAuthSession({ forceRefresh: true });
+      const token = session.tokens?.idToken?.toString();
+      if (!token) throw new Error("Session expired.");
+      return token;
+    } catch (err) {
+      signOut();
+      throw err;
     }
-    return token;
   };
 
-  // Fetch Cognito Attributes safely
   useEffect(() => {
     async function loadAttributes() {
       try {
@@ -42,7 +41,7 @@ function App({ signOut, user }) {
           role: attrs["custom:role"] || "LEAD"
         });
       } catch (err) {
-        console.error("Error loading user attributes:", err);
+        console.error("Error loading attributes:", err);
       }
     }
     loadAttributes();
@@ -51,34 +50,26 @@ function App({ signOut, user }) {
   const fetchPublicFeed = async () => {
     try {
       const token = await getAuthToken();
-      const headers = { Authorization: token };
-      const res = await fetch(`${API_URL}/public-feed`, { headers });
-      if (res.status === 401) {
-        signOut();
-        throw new Error("Your session expired. Please sign in again.");
-      }
-      if (!res.ok) throw new Error("Failed to fetch public feed");
+      const res = await fetch(`${API_URL}/public-feed`, { headers: { Authorization: token } });
+      if (res.status === 401) return signOut();
+      if (!res.ok) throw new Error("Failed to fetch feed");
       const data = await res.json();
       setPublicFeed(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Error fetching public feed:", err);
+      console.error("Public feed error:", err);
     }
   };
 
   const fetchDeptWorkspace = async () => {
     try {
       const token = await getAuthToken();
-      const headers = { Authorization: token };
-      const res = await fetch(`${API_URL}/department/workspace`, { headers });
-      if (res.status === 401) {
-        signOut();
-        throw new Error("Your session expired. Please sign in again.");
-      }
+      const res = await fetch(`${API_URL}/department/workspace`, { headers: { Authorization: token } });
+      if (res.status === 401) return signOut();
       if (!res.ok) throw new Error("Failed to fetch workspace");
       const data = await res.json();
       setDeptWorkspace(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Error fetching workspace:", err);
+      console.error("Workspace error:", err);
     }
   };
 
@@ -87,40 +78,41 @@ function App({ signOut, user }) {
     fetchDeptWorkspace();
   }, []);
 
-  // Handlers
   const handleToggleVisibility = async (item) => {
-    const id = item.id || item.intern_id;
-    const currentVis = item.visibility;
-    const newVis = currentVis === "PUBLIC" ? "PRIVATE" : "PUBLIC";
-    const token = await getAuthToken();
-    const res = await fetch(`${API_URL}/department/visibility`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Authorization: token },
-      body: JSON.stringify({
-        id,
-        type: item.type === "PHOTO" ? "IMAGE" : "INTERN_PROFILE",
-        visibility: newVis
-      })
-    });
-    if (!res.ok) {
-      console.error("Failed to update visibility status");
-      return;
+    try {
+      const id = item.id;
+      const newVis = item.visibility === "PUBLIC" ? "PRIVATE" : "PUBLIC";
+      const token = await getAuthToken();
+      
+      const res = await fetch(`${API_URL}/department/visibility`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: token },
+        body: JSON.stringify({ id, visibility: newVis })
+      });
+
+      if (!res.ok) return;
+      await fetchDeptWorkspace();
+      await fetchPublicFeed();
+    } catch (err) {
+      console.error("Visibility toggle error:", err);
     }
-    fetchDeptWorkspace();
-    fetchPublicFeed();
   };
 
   const handleDeleteItem = async (item) => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
-    const token = await getAuthToken();
-    if (item.type !== "PROFILE") return;
-    const endpoint = `${API_URL}/department/interns/${item.id}`;
-    const options = { method: "DELETE", headers: { Authorization: token } };
-    await fetch(endpoint, {
-      ...options,
-    });
-    fetchDeptWorkspace();
-    fetchPublicFeed();
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_URL}/department/interns/${item.id}`, {
+        method: "DELETE",
+        headers: { Authorization: token }
+      });
+
+      if (!res.ok) throw new Error("Delete failed");
+      await fetchDeptWorkspace();
+      await fetchPublicFeed();
+    } catch (err) {
+      console.error("Delete error:", err);
+    }
   };
 
   const handleAddIntern = async (e) => {
@@ -128,19 +120,23 @@ function App({ signOut, user }) {
     setSubmitting(true);
     try {
       const token = await getAuthToken();
-      await fetch(`${API_URL}/department/interns`, {
+      const res = await fetch(`${API_URL}/department/interns`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: token },
         body: JSON.stringify({
           name: internForm.name,
           field: internForm.role,
-          school: internForm.institution
+          school: internForm.institution,
+          visibility: internForm.visibility
         })
       });
+
+      if (!res.ok) throw new Error("Failed to create profile");
+
       setShowInternModal(false);
       setInternForm({ name: "", role: "", institution: "", visibility: "PRIVATE" });
-      fetchDeptWorkspace();
-      fetchPublicFeed();
+      await fetchDeptWorkspace();
+      await fetchPublicFeed();
     } catch (err) {
       alert("Error creating profile");
     } finally {
@@ -156,7 +152,6 @@ function App({ signOut, user }) {
     try {
       const token = await getAuthToken();
 
-      // 1. Get Presigned S3 URL
       const presignedRes = await fetch(`${API_URL}/department/gallery`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: token },
@@ -168,19 +163,21 @@ function App({ signOut, user }) {
         })
       });
 
+      if (!presignedRes.ok) throw new Error("Failed to get presigned URL");
       const { uploadUrl } = await presignedRes.json();
 
-      // 2. Direct S3 Upload
-      await fetch(uploadUrl, {
+      const s3Res = await fetch(uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": photoForm.file.type },
         body: photoForm.file
       });
 
+      if (!s3Res.ok) throw new Error("S3 Upload failed");
+
       setShowPhotoModal(false);
       setPhotoForm({ caption: "", file: null, visibility: "PRIVATE" });
-      fetchDeptWorkspace();
-      fetchPublicFeed();
+      await fetchDeptWorkspace();
+      await fetchPublicFeed();
     } catch (err) {
       alert("Error uploading image");
     } finally {
@@ -190,7 +187,6 @@ function App({ signOut, user }) {
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
-      {/* Sidebar */}
       <aside className="w-64 border-r border-slate-200 bg-white flex flex-col justify-between">
         <div>
           <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100">
@@ -238,7 +234,6 @@ function App({ signOut, user }) {
         </div>
       </aside>
 
-      {/* Main Panel */}
       <main className="flex-1 overflow-y-auto p-8">
         {activeTab === "public-feed" ? (
           <div>
@@ -247,10 +242,10 @@ function App({ signOut, user }) {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {publicFeed.map((item) => (
-                <div key={item.id || item.intern_id} className="rounded-2xl border bg-white p-5 shadow-sm">
-                  {item.type === "PHOTO" ? (
+                <div key={item.id} className="rounded-2xl border bg-white p-5 shadow-sm">
+                  {item.type === "PHOTO" || item.imageUrl ? (
                     <div>
-                      <img src={item.imageUrl} alt={item.caption} className="h-48 w-full object-cover rounded-xl" />
+                      <img src={item.imageUrl} alt={item.caption || "Gallery"} className="h-48 w-full object-cover rounded-xl" />
                       <p className="mt-2 text-xs font-semibold text-slate-600">{item.caption}</p>
                     </div>
                   ) : (
@@ -287,10 +282,10 @@ function App({ signOut, user }) {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {deptWorkspace.map((item) => (
-                <div key={item.id || item.intern_id} className="rounded-2xl border bg-white p-5 shadow-sm flex flex-col justify-between">
-                  {item.type === "PHOTO" ? (
+                <div key={item.id} className="rounded-2xl border bg-white p-5 shadow-sm flex flex-col justify-between">
+                  {item.type === "PHOTO" || item.imageUrl ? (
                     <div>
-                      <img src={item.imageUrl} alt={item.caption} className="h-48 w-full object-cover rounded-xl" />
+                      <img src={item.imageUrl} alt={item.caption || "Gallery"} className="h-48 w-full object-cover rounded-xl" />
                       <p className="mt-2 text-xs font-semibold text-slate-600">{item.caption}</p>
                     </div>
                   ) : (
@@ -311,11 +306,10 @@ function App({ signOut, user }) {
                         {item.visibility === "PUBLIC" ? <EyeOff size={14} /> : <Eye size={14} />}
                         {item.visibility === "PUBLIC" ? "Make Private" : "Publish"}
                       </button>
-                      {item.type === "PROFILE" && (
-                        <button onClick={() => handleDeleteItem(item)} className="p-1.5 text-slate-400 hover:text-red-600">
-                          <Trash2 size={16} />
-                        </button>
-                      )}
+                      
+                      <button onClick={() => handleDeleteItem(item)} className="p-1.5 text-slate-400 hover:text-red-600">
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
                 </div>

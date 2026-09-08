@@ -15,33 +15,41 @@ class DigisollInternProfileDashboardBackendStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        # 1. Single Table
-        table = dynamodb.Table(
-            self, "DigisolAppTable",
-            partition_key=dynamodb.Attribute(name="pk", type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.Attribute(name="sk", type=dynamodb.AttributeType.STRING),
+        # 1. DynamoDB Table
+        interns_table = dynamodb.Table(
+            self, "DigisolInternsTableV2",
+            partition_key=dynamodb.Attribute(
+                name="id",
+                type=dynamodb.AttributeType.STRING
+            ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY
         )
 
-        table.add_global_secondary_index(
-            index_name="PublicVisibilityIndex",
+        # GSI for public items query
+        interns_table.add_global_secondary_index(
+            index_name="VisibilityIndex",
             partition_key=dynamodb.Attribute(name="visibility", type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.Attribute(name="created_at", type=dynamodb.AttributeType.STRING)
+            sort_key=dynamodb.Attribute(name="createdAt", type=dynamodb.AttributeType.STRING)
         )
 
         # 2. S3 Bucket
-        gallery_bucket = s3.Bucket(
-            self, "DigisolGalleryBucket",
-            public_read_access=True,
+        image_bucket = s3.Bucket(
+            self, "DigisolStorageBucketV2",
             block_public_access=s3.BlockPublicAccess(
-                block_public_acls=False,
-                ignore_public_acls=False,
+                block_public_acls=True,
+                ignore_public_acls=True,
                 block_public_policy=False,
                 restrict_public_buckets=False
             ),
+            public_read_access=True,
             cors=[s3.CorsRule(
-                allowed_methods=[s3.HttpMethods.GET, s3.HttpMethods.PUT, s3.HttpMethods.POST, s3.HttpMethods.DELETE],
+                allowed_methods=[
+                    s3.HttpMethods.GET,
+                    s3.HttpMethods.PUT,
+                    s3.HttpMethods.POST,
+                    s3.HttpMethods.DELETE
+                ],
                 allowed_origins=["*"],
                 allowed_headers=["*"]
             )],
@@ -49,76 +57,93 @@ class DigisollInternProfileDashboardBackendStack(Stack):
             auto_delete_objects=True
         )
 
-        # 3. Cognito User Pool
+        # 3. Cognito User Pool (Using V2 Logical ID to prevent AliasAttributes update error)
         user_pool = cognito.UserPool(
-            self, "DigisolUserPool",
-            user_pool_name="digisol-user-pool",
+            self, "DigisolUserPoolV2",
+            user_pool_name="digisol-interns-user-pool-v2",
             self_sign_up_enabled=True,
             sign_in_aliases=cognito.SignInAliases(email=True),
-            custom_attributes={
-                "department": cognito.StringAttribute(mutable=True),
-                "role": cognito.StringAttribute(mutable=True)
-            },
+            auto_verify=cognito.AutoVerifiedAttrs(email=True),
             removal_policy=RemovalPolicy.DESTROY
         )
 
         user_pool_client = user_pool.add_client(
-            "DigisolUserPoolClient",
-            generate_secret=False,
-            read_attributes=cognito.ClientAttributes().with_custom_attributes("department", "role"),
-            write_attributes=cognito.ClientAttributes().with_custom_attributes("department", "role")
+            "DigisolUserPoolClientV2",
+            user_pool_client_name="digisol-interns-web-client-v2",
+            generate_secret=False
         )
 
         # 4. Lambda Function
-        backend_lambda = _lambda.Function(
-            self, "BackendHandler",
+        crud_lambda = _lambda.Function(
+            self, "DigisolCrudHandlerV2",
             runtime=_lambda.Runtime.PYTHON_3_11,
             handler="handler.handler",
             code=_lambda.Code.from_asset("lambda"),
             environment={
-                "TABLE_NAME": table.table_name,
-                "BUCKET_NAME": gallery_bucket.bucket_name
+                "TABLE_NAME": interns_table.table_name,
+                "BUCKET_NAME": image_bucket.bucket_name
             }
         )
 
-        table.grant_read_write_data(backend_lambda)
-        gallery_bucket.grant_read_write(backend_lambda)
+        interns_table.grant_read_write_data(crud_lambda)
+        image_bucket.grant_read_write(crud_lambda)
 
-        # 5. API Gateway
+        # 5. REST API Gateway
         api = apigw.RestApi(
-            self, "DigisolApi",
+            self, "DigisolInternApiV2",
+            rest_api_name="Digisol Intern Service V2",
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=apigw.Cors.ALL_METHODS,
-                allow_headers=["Content-Type", "Authorization", "X-Amz-Date", "X-Api-Key", "X-Amz-Security-Token"]
+                allow_headers=[
+                    "Content-Type",
+                    "Authorization",
+                    "X-Amz-Date",
+                    "X-Api-Key",
+                    "X-Amz-Security-Token"
+                ]
             )
         )
 
         authorizer = apigw.CognitoUserPoolsAuthorizer(
-            self, "ApiAuthorizer",
+            self, "DigisolAuthorizerV2",
             cognito_user_pools=[user_pool]
         )
 
-        auth_options = {
+        auth_opts = {
             "authorizer": authorizer,
             "authorization_type": apigw.AuthorizationType.COGNITO
         }
 
-        integration = apigw.LambdaIntegration(backend_lambda)
+        integration = apigw.LambdaIntegration(crud_lambda)
 
-        api.root.add_resource("public-feed").add_method("GET", integration, **auth_options)
-        
+        # --- Route Definitions ---
+        # GET /public-feed
+        public_feed = api.root.add_resource("public-feed")
+        public_feed.add_method("GET", integration, **auth_opts)
+
+        # /department
         dept = api.root.add_resource("department")
-        dept.add_resource("workspace").add_method("GET", integration, **auth_options)
-        dept.add_resource("interns").add_method("POST", integration, **auth_options)
-        dept.add_resource("photos").add_method("POST", integration, **auth_options)
         
-        items = dept.add_resource("items")
-        items.add_method("PUT", integration, **auth_options)
-        items.add_method("DELETE", integration, **auth_options)
+        # GET /department/workspace
+        dept_workspace = dept.add_resource("workspace")
+        dept_workspace.add_method("GET", integration, **auth_opts)
 
-        dept.add_resource("visibility").add_method("PUT", integration, **auth_options)
+        # PUT /department/visibility
+        dept_vis = dept.add_resource("visibility")
+        dept_vis.add_method("PUT", integration, **auth_opts)
 
+        # POST /department/interns & DELETE /department/interns/{id}
+        dept_interns = dept.add_resource("interns")
+        dept_interns.add_method("POST", integration, **auth_opts)
+        intern_item = dept_interns.add_resource("{id}")
+        intern_item.add_method("DELETE", integration, **auth_opts)
+
+        # POST /department/gallery (Presigned S3 URL)
+        dept_gallery = dept.add_resource("gallery")
+        dept_gallery.add_method("POST", integration, **auth_opts)
+
+        # Outputs
         CfnOutput(self, "ApiEndpointUrl", value=api.url)
         CfnOutput(self, "UserPoolId", value=user_pool.user_pool_id)
         CfnOutput(self, "UserPoolClientId", value=user_pool_client.user_pool_client_id)

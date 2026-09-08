@@ -1,181 +1,131 @@
 import json
 import os
 import uuid
-from datetime import datetime, timezone
-
+from datetime import datetime
 import boto3
-from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.conditions import Key, Attr
 
+dynamodb = boto3.resource('dynamodb')
+s3 = boto3.client('s3')
 
-dynamodb = boto3.resource("dynamodb")
-interns_table = dynamodb.Table(os.environ["INTERNS_TABLE_NAME"])
-photos_table = dynamodb.Table(os.environ["PHOTOS_TABLE_NAME"])
-s3 = boto3.client("s3")
-bucket_name = os.environ["BUCKET_NAME"]
+TABLE_NAME = os.environ.get('TABLE_NAME')
+BUCKET_NAME = os.environ.get('BUCKET_NAME')
+table = dynamodb.Table(TABLE_NAME)
 
+def get_response(status_code, body):
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token",
+            "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+        },
+        "body": json.dumps(body)
+    }
 
-def handler(event, _context):
-    method = event.get("httpMethod", "")
-    path = event.get("resource") or event.get("path", "")
-    stage = event.get("requestContext", {}).get("stage")
-    if stage and path.startswith(f"/{stage}/"):
-        path = path[len(stage) + 1:]
-    if not path.startswith("/"):
-        path = f"/{path}"
+def handler(event, context):
+    path = event.get('path', '')
+    http_method = event.get('httpMethod', '')
 
-    if method == "OPTIONS":
-        return response(200, {"message": "CORS OK"})
+    if http_method == 'OPTIONS':
+        return get_response(200, {"message": "CORS preflight OK"})
+
+    # Parse Cognito Claims
+    claims = event.get('requestContext', {}).get('authorizer', {}).get('claims', {})
+    department = claims.get('custom:department', 'General')
+    user_id = claims.get('sub', 'anonymous')
 
     try:
-        if method == "GET" and path == "/public/interns":
-            return response(200, public_interns())
-        if method == "GET" and path == "/public/gallery":
-            return response(200, public_photos())
-        if method == "GET" and path == "/public-feed":
-            return response(200, typed_items(public_interns(), "PROFILE") + typed_items(public_photos(), "PHOTO"))
+        # 1. GET /public-feed
+        if path.endswith('/public-feed') and http_method == 'GET':
+            res = table.query(
+                IndexName='VisibilityIndex',
+                KeyConditionExpression=Key('visibility').eq('PUBLIC')
+            )
+            return get_response(200, res.get('Items', []))
 
-        claims = claims_from(event)
-        if not claims.get("sub"):
-            return response(401, {"error": "Authentication required"})
-        actor = {"id": claims["sub"], "department": department_from(claims), "admin": is_admin(claims)}
+        # 2. GET /department/workspace
+        if path.endswith('/department/workspace') and http_method == 'GET':
+            res = table.scan(
+                FilterExpression=Attr('department').eq(department)
+            )
+            return get_response(200, res.get('Items', []))
 
-        if method == "GET" and path == "/department/interns":
-            return response(200, department_interns(actor))
-        if method == "GET" and path == "/department/workspace":
-            return response(200, typed_items(department_interns(actor), "PROFILE") + typed_items(department_photos(actor), "PHOTO"))
-        if method == "POST" and path == "/department/interns":
-            return response(201, create_intern(body(event), actor))
-        if method == "PUT" and path == "/department/interns/{id}":
-            return update_intern(event["pathParameters"]["id"], body(event), actor)
-        if method == "DELETE" and path == "/department/interns/{id}":
-            return delete_intern(event["pathParameters"]["id"], actor)
-        if method == "GET" and path == "/department/gallery":
-            return response(200, department_photos(actor))
-        if method == "POST" and path == "/department/gallery":
-            return response(201, create_photo(body(event), actor))
-        if method == "PUT" and path in {"/department/publish", "/department/visibility"}:
-            return change_visibility(body(event), actor)
-        return response(404, {"error": "Route not found"})
-    except (KeyError, ValueError, json.JSONDecodeError):
-        return response(400, {"error": "Invalid request"})
-    except Exception:
-        return response(500, {"error": "Internal server error"})
+        # 3. PUT /department/visibility
+        if path.endswith('/department/visibility') and http_method == 'PUT':
+            body = json.loads(event.get('body', '{}'))
+            item_id = body.get('id')
+            new_vis = body.get('visibility', 'PRIVATE')
 
+            table.update_item(
+                Key={'id': item_id},
+                UpdateExpression="SET visibility = :v",
+                ExpressionAttributeValues={':v': new_vis}
+            )
+            return get_response(200, {"message": "Visibility updated"})
 
-def claims_from(event):
-    authorizer = event.get("requestContext", {}).get("authorizer", {})
-    return authorizer.get("claims", {}) or authorizer.get("jwt", {}).get("claims", {})
+        # 4. POST /department/interns
+        if path.endswith('/department/interns') and http_method == 'POST':
+            body = json.loads(event.get('body', '{}'))
+            item_id = str(uuid.uuid4())
+            
+            item = {
+                'id': item_id,
+                'type': 'PROFILE',
+                'name': body.get('name'),
+                'field': body.get('field'),
+                'school': body.get('school'),
+                'department': department,
+                'visibility': body.get('visibility', 'PRIVATE'),
+                'createdBy': user_id,
+                'createdAt': datetime.utcnow().isoformat()
+            }
+            table.put_item(Item=item)
+            return get_response(200, item)
 
+        # 5. DELETE /department/interns/{id}
+        if '/department/interns/' in path and http_method == 'DELETE':
+            path_params = event.get('pathParameters') or {}
+            item_id = path_params.get('id')
+            
+            table.delete_item(Key={'id': item_id})
+            return get_response(200, {"message": "Item deleted"})
 
-def department_from(claims):
-    return (claims.get("custom:department") or "General").strip() or "General"
+        # 6. POST /department/gallery (Presigned S3 Upload)
+        if path.endswith('/department/gallery') and http_method == 'POST':
+            body = json.loads(event.get('body', '{}'))
+            file_name = body.get('fileName', f"{uuid.uuid4()}.jpg")
+            file_type = body.get('fileType', 'image/jpeg')
 
+            s3_key = f"departments/{department}/{uuid.uuid4()}_{file_name}"
+            presigned_url = s3.generate_presigned_url(
+                'put_object',
+                Params={'Bucket': BUCKET_NAME, 'Key': s3_key, 'ContentType': file_type},
+                ExpiresIn=300
+            )
 
-def is_admin(claims):
-    groups = claims.get("cognito:groups", [])
-    if isinstance(groups, str):
-        groups = groups.split(",")
-    return "admin" in groups or "department-admin" in groups
+            item_id = str(uuid.uuid4())
+            image_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/{s3_key}"
 
+            # Save Photo Metadata to DynamoDB
+            table.put_item(Item={
+                'id': item_id,
+                'type': 'PHOTO',
+                'caption': body.get('caption', ''),
+                'imageUrl': image_url,
+                'department': department,
+                'visibility': body.get('visibility', 'PRIVATE'),
+                'createdBy': user_id,
+                'createdAt': datetime.utcnow().isoformat()
+            })
 
-def body(event):
-    return json.loads(event.get("body") or "{}")
+            return get_response(200, {
+                "uploadUrl": presigned_url,
+                "id": item_id,
+                "imageUrl": image_url
+            })
 
+        return get_response(404, {"error": "Route not found"})
 
-def now():
-    return datetime.now(timezone.utc).isoformat()
-
-
-def typed_items(items, item_type):
-    return [{**item, "type": item_type} for item in items]
-
-
-def public_interns():
-    result = interns_table.query(IndexName="PublicVisibilityIndex", KeyConditionExpression=Key("visibility").eq("PUBLIC"), ScanIndexForward=False)
-    return [intern_view(item) for item in result.get("Items", [])]
-
-
-def department_interns(actor):
-    result = interns_table.query(IndexName="DepartmentIndex", KeyConditionExpression=Key("department").eq(actor["department"]), ScanIndexForward=False)
-    return [intern_view(item) for item in result.get("Items", [])]
-
-
-def create_intern(data, actor):
-    item = {"intern_id": str(uuid.uuid4()), "department": actor["department"], "owner_id": actor["id"], "name": data.get("name", "").strip(), "field": data.get("field", "").strip(), "school": data.get("school", "").strip(), "imageUrl": data.get("imageUrl", ""), "visibility": "PRIVATE", "created_at": now()}
-    if not item["name"]:
-        raise ValueError("Name is required")
-    interns_table.put_item(Item=item)
-    return intern_view(item)
-
-
-def update_intern(intern_id, data, actor):
-    item = interns_table.get_item(Key={"intern_id": intern_id}).get("Item")
-    if not item or item.get("department") != actor["department"]:
-        return response(404, {"error": "Intern not found"})
-    if item.get("owner_id") != actor["id"] and not actor["admin"]:
-        return response(403, {"error": "Department admin access is required"})
-    updates = {key: data[key] for key in ("name", "field", "school", "imageUrl") if key in data}
-    if not updates:
-        return response(400, {"error": "No changes supplied"})
-    intern = {**item, **updates}
-    interns_table.put_item(Item=intern)
-    return response(200, intern_view(intern))
-
-
-def delete_intern(intern_id, actor):
-    item = interns_table.get_item(Key={"intern_id": intern_id}).get("Item")
-    if not item or item.get("department") != actor["department"]:
-        return response(404, {"error": "Intern not found"})
-    if item.get("owner_id") != actor["id"] and not actor["admin"]:
-        return response(403, {"error": "Department admin access is required"})
-    interns_table.delete_item(Key={"intern_id": intern_id})
-    return response(200, {"message": "Intern deleted"})
-
-
-def public_photos():
-    result = photos_table.query(IndexName="PublicVisibilityIndex", KeyConditionExpression=Key("visibility").eq("PUBLIC"), ScanIndexForward=False)
-    return [photo_view(item) for item in result.get("Items", [])]
-
-
-def department_photos(actor):
-    result = photos_table.query(IndexName="DepartmentIndex", KeyConditionExpression=Key("department").eq(actor["department"]), ScanIndexForward=False)
-    return [photo_view(item) for item in result.get("Items", [])]
-
-
-def create_photo(data, actor):
-    photo_id = str(uuid.uuid4())
-    file_name = os.path.basename(data.get("fileName", "photo"))
-    key = f"departments/{actor['department']}/{photo_id}-{file_name}"
-    item = {"image_id": photo_id, "department": actor["department"], "owner_id": actor["id"], "caption": data.get("caption", ""), "visibility": "PRIVATE", "created_at": now(), "s3_key": key}
-    photos_table.put_item(Item=item)
-    photo = photo_view(item)
-    photo["uploadUrl"] = s3.generate_presigned_url("put_object", Params={"Bucket": bucket_name, "Key": key, "ContentType": data.get("fileType", "image/jpeg")}, ExpiresIn=900)
-    return photo
-
-
-def change_visibility(data, actor):
-    target = interns_table if data.get("type") == "INTERN_PROFILE" else photos_table if data.get("type") == "IMAGE" else None
-    key_name = "intern_id" if data.get("type") == "INTERN_PROFILE" else "image_id"
-    if not target or data.get("visibility") not in {"PUBLIC", "PRIVATE"}:
-        return response(400, {"error": "Invalid publication request"})
-    item = target.get_item(Key={key_name: data.get("id")}).get("Item")
-    if not item or item.get("department") != actor["department"]:
-        return response(404, {"error": "Item not found"})
-    if item.get("owner_id") != actor["id"] and not actor["admin"]:
-        return response(403, {"error": "Department admin access is required"})
-    item["visibility"] = data["visibility"]
-    target.put_item(Item=item)
-    return response(200, intern_view(item) if key_name == "intern_id" else photo_view(item))
-
-
-def intern_view(item):
-    return {key: item.get(key, "") for key in ("intern_id", "name", "field", "school", "imageUrl", "department", "visibility")}
-
-
-def photo_view(item):
-    key = item.get("s3_key", "")
-    return {"id": item.get("image_id"), "caption": item.get("caption", ""), "department": item.get("department", ""), "visibility": item.get("visibility", "PRIVATE"), "imageUrl": s3.generate_presigned_url("get_object", Params={"Bucket": bucket_name, "Key": key}, ExpiresIn=900) if key else ""}
-
-
-def response(status, payload):
-    return {"statusCode": status, "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS", "Access-Control-Allow-Headers": "Content-Type,Authorization"}, "body": json.dumps(payload, default=str)}
+    except Exception as e:
+        return get_response(500, {"error": str(e)})
