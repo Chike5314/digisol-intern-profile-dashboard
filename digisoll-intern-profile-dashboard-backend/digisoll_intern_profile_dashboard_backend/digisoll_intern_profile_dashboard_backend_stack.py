@@ -140,15 +140,22 @@ class DigisollInternProfileDashboardBackendStack(Stack):
         dept_vis = dept.add_resource("visibility")
         dept_vis.add_method("PUT", integration, **auth_opts)
 
-        # POST /department/interns & DELETE /department/interns/{id}
+        # POST /department/interns & PUT/DELETE /department/interns/{id}
         dept_interns = dept.add_resource("interns")
         dept_interns.add_method("POST", integration, **auth_opts)
         intern_item = dept_interns.add_resource("{id}")
+        intern_item.add_method("PUT", integration, **auth_opts)
         intern_item.add_method("DELETE", integration, **auth_opts)
 
-        # POST /department/gallery (Presigned S3 URL)
+        # POST /department/gallery (Presigned S3 URL) & PUT /department/gallery/{id} (caption edit)
         dept_gallery = dept.add_resource("gallery")
         dept_gallery.add_method("POST", integration, **auth_opts)
+        gallery_item = dept_gallery.add_resource("{id}")
+        gallery_item.add_method("PUT", integration, **auth_opts)
+
+        # POST /department/avatar-upload-url (Presigned S3 URL for intern avatars)
+        dept_avatar = dept.add_resource("avatar-upload-url")
+        dept_avatar.add_method("POST", integration, **auth_opts)
 
         # Outputs
         CfnOutput(self, "ApiEndpointUrl", value=api.url)
