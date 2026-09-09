@@ -57,27 +57,45 @@ class DigisollInternProfileDashboardBackendStack(Stack):
             auto_delete_objects=True
         )
 
-        # 3. Cognito User Pool (Using V2 Logical ID to prevent AliasAttributes update error)
-        user_pool = cognito.UserPool(
-            self, "DigisolUserPoolV2",
-            user_pool_name="digisol-interns-user-pool-v2",
-            self_sign_up_enabled=True,
-            sign_in_aliases=cognito.SignInAliases(email=True),
-            auto_verify=cognito.AutoVerifiedAttrs(email=True),
-            removal_policy=RemovalPolicy.DESTROY,
-
-            custom_attributes={
-                "department": cognito.StringAttribute(mutable=True),
-                "role": cognito.StringAttribute(mutable=True),
-            }
+        # 3. Import Existing User Pool (Avoids re-creating Domain and Google IDP collisions)
+        user_pool = cognito.UserPool.from_user_pool_id(
+            self, "ImportedUserPool",
+            user_pool_id="us-east-1_v6PErV1cG"
         )
 
-        user_pool_client = user_pool.add_client(
-            "DigisolUserPoolClientV2",
+        # User Pool Client Definition
+        user_pool_client = cognito.UserPoolClient(
+            self, "DigisolUserPoolClientV2",
+            user_pool=user_pool,
             user_pool_client_name="digisol-interns-web-client-v2",
             generate_secret=False,
             read_attributes=cognito.ClientAttributes().with_standard_attributes(email=True).with_custom_attributes("department", "role"),
-            write_attributes=cognito.ClientAttributes().with_standard_attributes(email=True).with_custom_attributes("department", "role")
+            write_attributes=cognito.ClientAttributes().with_standard_attributes(email=True).with_custom_attributes("department", "role"),
+            supported_identity_providers=[
+                cognito.UserPoolClientIdentityProvider.COGNITO,
+                cognito.UserPoolClientIdentityProvider.GOOGLE,
+            ],
+            o_auth=cognito.OAuthSettings(
+                flows=cognito.OAuthFlows(
+                    authorization_code_grant=True,
+                    implicit_code_grant=True
+                ),
+                scopes=[
+                    cognito.OAuthScope.COGNITO_ADMIN,
+                    cognito.OAuthScope.EMAIL,
+                    cognito.OAuthScope.OPENID,
+                    cognito.OAuthScope.PHONE,
+                    cognito.OAuthScope.PROFILE
+                ],
+                callback_urls=[
+                    "http://localhost:5173/",
+                    "https://main.d3co7r5b8ec1sd.amplifyapp.com/"
+                ],
+                logout_urls=[
+                    "http://localhost:5173/",
+                    "https://main.d3co7r5b8ec1sd.amplifyapp.com/"
+                ],
+            )
         )
 
         # 4. Lambda Function
@@ -125,35 +143,28 @@ class DigisollInternProfileDashboardBackendStack(Stack):
         integration = apigw.LambdaIntegration(crud_lambda)
 
         # --- Route Definitions ---
-        # GET /public-feed
         public_feed = api.root.add_resource("public-feed")
         public_feed.add_method("GET", integration)
 
-        # /department
         dept = api.root.add_resource("department")
         
-        # GET /department/workspace
         dept_workspace = dept.add_resource("workspace")
         dept_workspace.add_method("GET", integration, **auth_opts)
 
-        # PUT /department/visibility
         dept_vis = dept.add_resource("visibility")
         dept_vis.add_method("PUT", integration, **auth_opts)
 
-        # POST /department/interns & PUT/DELETE /department/interns/{id}
         dept_interns = dept.add_resource("interns")
         dept_interns.add_method("POST", integration, **auth_opts)
         intern_item = dept_interns.add_resource("{id}")
         intern_item.add_method("PUT", integration, **auth_opts)
         intern_item.add_method("DELETE", integration, **auth_opts)
 
-        # POST /department/gallery (Presigned S3 URL) & PUT /department/gallery/{id} (caption edit)
         dept_gallery = dept.add_resource("gallery")
         dept_gallery.add_method("POST", integration, **auth_opts)
         gallery_item = dept_gallery.add_resource("{id}")
         gallery_item.add_method("PUT", integration, **auth_opts)
 
-        # POST /department/avatar-upload-url (Presigned S3 URL for intern avatars)
         dept_avatar = dept.add_resource("avatar-upload-url")
         dept_avatar.add_method("POST", integration, **auth_opts)
 
