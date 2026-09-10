@@ -12,8 +12,8 @@ export function PublicFeedView({ feed, status }) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-1">Public Gallery Feed</h2>
-      <p className="text-sm text-slate-500 mb-6">Shared internship photos and profiles from all departments.</p>
+      <h2 className="font-display text-2xl font-semibold text-[var(--ink)] mb-1">Public feed</h2>
+      <p className="text-sm text-[var(--ink)]/55 mb-7">Profiles and photos published across every department.</p>
 
       <FilterBar query={query} onQueryChange={setQuery} showVisibilityFilter={false} />
 
@@ -28,10 +28,17 @@ export function PublicFeedView({ feed, status }) {
         )}
         {status === "ready" &&
           visible.map((item) => (
-            <div key={item.id} className="rounded-2xl border bg-white p-5 shadow-sm">
+            <div
+              key={item.id}
+              className={
+                item.type === "PROFILE"
+                  ? "bg-[var(--surface)] border border-[var(--ink)] rounded-md p-5"
+                  : "bg-[var(--surface)] border border-[var(--line)] p-3"
+              }
+            >
               {item.type === "PHOTO" ? <PhotoCard item={item} /> : <ProfileCard item={item} />}
-              <span className="mt-4 inline-block text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-600">
-                Dept: {item.department}
+              <span className="mt-4 inline-block text-[11px] font-medium border border-[var(--line)] text-[var(--steel)] px-2 py-1 rounded-sm">
+                {item.department}
               </span>
             </div>
           ))}

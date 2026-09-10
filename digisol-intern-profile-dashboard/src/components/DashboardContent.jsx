@@ -8,6 +8,7 @@ import { AddInternModal } from "./modals/AddInternModal";
 import { UploadPhotoModal } from "./modals/UploadPhotoModal";
 import { EditInternModal } from "./modals/EditInternModal";
 import { EditPhotoModal } from "./modals/EditPhotoModal";
+import { CompleteProfileModal } from "./modals/CompleteProfileModal";
 import { useToast } from "./ui/ToastProvider";
 
 import { useApi } from "../hooks/useApi";
@@ -21,7 +22,7 @@ import { getGalleryUploadUrl, getAvatarUploadUrl, uploadToS3, updatePhotoCaption
 export function DashboardContent({ signOut }) {
   const toast = useToast();
   const api = useApi(signOut);
-  const { department, role } = useUserAttrs();
+  const { department, role, needsOnboarding, loading: attrsLoading, completeProfile } = useUserAttrs();
 
   const publicFeed = usePublicFeed(api);
   const workspace = useWorkspace(api);
@@ -206,6 +207,10 @@ export function DashboardContent({ signOut }) {
           submitting={submitting}
         />
       )}
+
+      {/* Federated (Google) sign-ins skip the sign-up form entirely, so department/role
+          never get set. Block on collecting them before the rest of the app is usable. */}
+      {!attrsLoading && needsOnboarding && <CompleteProfileModal onComplete={completeProfile} />}
     </AppShell>
   );
 }

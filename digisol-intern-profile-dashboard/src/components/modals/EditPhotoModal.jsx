@@ -10,23 +10,27 @@ export function EditPhotoModal({ item, onClose, onSubmit, submitting }) {
   };
 
   return (
-    <Modal title="Edit Photo Caption" onClose={onClose}>
+    <Modal title="Edit photo caption" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-3">
-        <img src={item.imageUrl} alt={item.caption || "Department photo"} className="h-40 w-full object-cover rounded-xl bg-slate-100" />
+        <img
+          src={item.imageUrl}
+          alt={item.caption || "Department photo"}
+          className="h-40 w-full object-cover border border-[var(--line)]"
+        />
         <input
           type="text"
-          placeholder="Caption / Description"
+          placeholder="Caption / description"
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
-          className="w-full rounded-xl border p-2.5 text-sm outline-none"
+          className="w-full rounded-md border border-[var(--line)] bg-[var(--surface)] p-2.5 text-sm text-[var(--ink)] outline-none focus:border-[var(--steel)] transition placeholder:text-[var(--ink)]/40"
         />
-        <p className="text-xs text-slate-400">To replace the image itself, delete this photo and upload a new one.</p>
+        <p className="text-xs text-[var(--ink)]/45">To replace the image itself, delete this photo and upload a new one.</p>
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-slate-900 text-white rounded-xl py-2.5 font-semibold text-sm hover:bg-slate-800 disabled:opacity-60"
+          className="w-full bg-[var(--ink)] text-white rounded-md py-2.5 font-medium text-sm hover:bg-[#2A3547] transition disabled:opacity-50"
         >
-          {submitting ? "Saving..." : "Save Changes"}
+          {submitting ? "Saving..." : "Save changes"}
         </button>
       </form>
     </Modal>

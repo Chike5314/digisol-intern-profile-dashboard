@@ -1,1 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss";
+
+:root {
+  --ink: #1B2430;
+  --paper: #F1F3F6;
+  --surface: #FFFFFF;
+  --amber: #E8A33D;
+  --amber-ink: #7A5417;
+  --steel: #3D5A80;
+  --line: #D8DCE2;
+  --moss: #4C7A5E;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+/* Amplify Authenticator theming — keep the sign-in screen in the same visual
+   language as the rest of the app instead of Amplify's default blue/grey. */
+:root {
+  --amplify-colors-brand-primary-10: #FBF3E4;
+  --amplify-colors-brand-primary-60: var(--amber);
+  --amplify-colors-brand-primary-80: var(--amber-ink);
+  --amplify-colors-brand-primary-90: var(--amber-ink);
+  --amplify-colors-brand-primary-100: var(--amber-ink);
+  --amplify-components-button-primary-background-color: var(--ink);
+  --amplify-components-button-primary-hover-background-color: #2A3547;
+  --amplify-components-authenticator-router-border-color: var(--line);
+  --amplify-fonts-default-static: 'Inter', system-ui, sans-serif;
+}

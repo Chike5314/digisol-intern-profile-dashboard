@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { ImageLightbox } from "../ui/ImageLightbox";
+
 function initials(name = "") {
   return name
     .split(" ")
@@ -8,24 +11,36 @@ function initials(name = "") {
 }
 
 export function ProfileCard({ item }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3.5">
       {item.avatarUrl ? (
-        <img
-          src={item.avatarUrl}
-          alt={item.name}
-          className="h-11 w-11 shrink-0 rounded-full object-cover bg-slate-100"
-        />
+        <button
+          onClick={() => setPreviewOpen(true)}
+          aria-label={`Preview ${item.name}'s photo`}
+          className="shrink-0"
+        >
+          <img
+            src={item.avatarUrl}
+            alt={item.name}
+            className="h-12 w-12 rounded-full object-cover border-2 border-[var(--ink)] hover:opacity-85 transition"
+          />
+        </button>
       ) : (
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-[var(--ink)] bg-[var(--paper)] font-display font-semibold text-sm text-[var(--ink)]">
           {initials(item.name) || "?"}
         </div>
       )}
       <div className="min-w-0">
-        <h3 className="font-bold text-slate-900 truncate">{item.name}</h3>
-        <p className="text-xs text-indigo-600 truncate">{item.field}</p>
-        <p className="text-xs text-slate-400 truncate">{item.school}</p>
+        <h3 className="font-display font-semibold text-[var(--ink)] truncate leading-tight">{item.name}</h3>
+        <p className="text-xs text-[var(--steel)] font-medium truncate mt-0.5">{item.field}</p>
+        <p className="text-xs text-[var(--ink)]/50 truncate">{item.school}</p>
       </div>
+
+      {previewOpen && item.avatarUrl && (
+        <ImageLightbox src={item.avatarUrl} alt={item.name} onClose={() => setPreviewOpen(false)} />
+      )}
     </div>
   );
 }
