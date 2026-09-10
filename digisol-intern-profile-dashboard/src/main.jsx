@@ -13,8 +13,8 @@ Amplify.configure({
         oauth: {
           domain: 'digisol-dashboard-auth.auth.us-east-1.amazoncognito.com',
           scopes: ['email', 'profile', 'openid'],
-          redirectSignIn: ['http://localhost:5173/', 'https://main.d3co7r5b8ec1sd.amplifyapp.com/workspace'],
-          redirectSignOut: ['http://localhost:5173/', 'https://main.d3co7r5b8ec1sd.amplifyapp.com/workspace'],
+          redirectSignIn: ['http://localhost:5173/','https://main.d3co7r5b8ec1sd.amplifyapp.com/', 'https://main.d3co7r5b8ec1sd.amplifyapp.com/workspace'],
+          redirectSignOut: ['http://localhost:5173/','https://main.d3co7r5b8ec1sd.amplifyapp.com/', 'https://main.d3co7r5b8ec1sd.amplifyapp.com/workspace'],
           responseType: 'code'
         }
       }
